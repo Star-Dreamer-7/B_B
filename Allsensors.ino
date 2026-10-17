@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
@@ -51,7 +50,7 @@ const int IR_PARED = LOW;
 
 // Corregir movimiento hacia atras
 const bool INVERTIR_IZQUIERDO = true;
-const bool INVERTIR_DERECHO = true;
+const bool INVERTIR_DERECHO = false;
 
 // AJUSTAR SEGUN TU ROBOT
 // Tiempos aproximados, NO calibrados
@@ -444,4 +443,5 @@ void setup() {
 void loop() {
   resolverMaze();
 }
+
 
