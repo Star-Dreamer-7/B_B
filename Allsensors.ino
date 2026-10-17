@@ -3,10 +3,6 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ========================================
-// ROBOREGOS CANDIDATES 2026
-// PISTA A - WALL FOLLOWER DERECHA
-// ========================================
 
 // MOTORES - TB6612FNG
 const int PWMA = 5;
