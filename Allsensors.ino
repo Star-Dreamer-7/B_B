@@ -37,7 +37,7 @@ Adafruit_TCS34725 tcs(
 );
 
 // CONFIGURACION
-const int VELOCIDAD = 110;
+const int VELOCIDAD = 140;
 const float DISTANCIA_PARED = 15.0;
 const int IR_PARED = LOW;
 
@@ -257,25 +257,25 @@ void mostrarSensores() {
 }
 
 // ========================================
-// PRUEBA DE MOVIMIENTO
+// PRUEBA DE MOVIMIENTO CORREGIDA
 // ========================================
 
 void pruebaMovimiento() {
   Serial.println("AVANZAR");
   avanzar();
-  delay(300);
+  delay(1000);
   detener();
-  delay(800);
+  delay(1000);
 
   Serial.println("DERECHA");
   girarDerecha();
-  delay(250);
+  delay(500);
   detener();
-  delay(800);
+  delay(1000);
 
   Serial.println("IZQUIERDA");
   girarIzquierda();
-  delay(250);
+  delay(500);
   detener();
 
   Serial.println("PRUEBA TERMINADA");
@@ -344,7 +344,7 @@ void loop() {
   if (!pruebaTerminada) {
     pruebaTerminada = true;
 
-    // Ejecutar solo una vez
+    // Ejecutar una sola vez
     // con las ruedas levantadas
     pruebaMovimiento();
   }
