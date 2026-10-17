@@ -50,20 +50,21 @@ Adafruit_TCS34725 tcs(
 const int VELOCIDAD = 130;
 const int VELOCIDAD_GIRO = 160;
 
-// CAMBIO: antes era 15 cm
-const float DISTANCIA_PARED = 25.0;
+// Distancia de seguridad frontal
+const float DISTANCIA_PARED = 30.0;
 
+// IR detecta pared con LOW
 const int IR_PARED = LOW;
 
+// Direccion de motores ya configurada
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = false;
 
-// Tiempos aproximados
+// Giros aproximados
 const unsigned long TIEMPO_GIRO_90 = 450;
-const unsigned long TIEMPO_AVANCE_CORTO = 250;
 
-// CAMBIO: lectura frontal mas frecuente
-const unsigned long TIEMPO_AVANCE_FRENTE = 50;
+// Avance corto para revisar distancia
+const unsigned long TIEMPO_AVANCE = 30;
 
 // ======================================
 // VARIABLES
@@ -79,7 +80,7 @@ float azul = 0;
 String colorDetectado = "SIN LECTURA";
 
 // ======================================
-// CONTROL DE MOTORES
+// MOTORES
 // ======================================
 
 void moverMotores(int izquierda, int derecha) {
@@ -285,7 +286,7 @@ void mostrarSensores() {
 }
 
 // ======================================
-// MOVIMIENTOS CALIBRABLES
+// GIROS
 // ======================================
 
 void giro90Derecha() {
@@ -325,6 +326,31 @@ void giro180() {
 }
 
 // ======================================
+// AVANCE CON REVISION DE PARED
+// ======================================
+
+void avanzarSeguro() {
+
+  leerUltrasonico();
+
+  if (distancia < 0) {
+    detener();
+    Serial.println("SIN ECO - DETENIDO");
+    return;
+  }
+
+  if (distancia <= DISTANCIA_PARED) {
+    detener();
+    Serial.println("PARED FRONTAL - DETENIDO");
+    return;
+  }
+
+  avanzar();
+  delay(TIEMPO_AVANCE);
+  detener();
+}
+
+// ======================================
 // WALL FOLLOWER - MANO DERECHA
 // ======================================
 
@@ -334,79 +360,58 @@ void resolverMaze() {
   leerColor();
   mostrarSensores();
 
-  // Si no hay lectura frontal confiable,
-  // detener por seguridad.
+  // No avanzar si no hay lectura
   if (distancia < 0) {
-
     detener();
-
-    Serial.println("SIN ECO - DETENIDO");
-
-    delay(150);
+    Serial.println("ERROR ULTRASONICO");
+    delay(100);
     return;
   }
 
   bool frenteLibre = distancia > DISTANCIA_PARED;
   bool derechaLibre = !paredDerecha();
 
-  // Si hay pared cerca, detener primero
-  if (!frenteLibre) {
-    detener();
-    Serial.println("PARED FRONTAL DETECTADA");
-    delay(100);
-  }
-
   // PRIORIDAD 1: DERECHA LIBRE
   if (derechaLibre) {
 
-    Serial.println("CAMINO A LA DERECHA");
+    Serial.println("DERECHA LIBRE");
 
     detener();
-    delay(100);
-
     giro90Derecha();
 
+    // Revisar el nuevo frente
     leerUltrasonico();
 
     if (distancia > DISTANCIA_PARED) {
-
-      avanzar();
-      delay(TIEMPO_AVANCE_CORTO);
-
-      detener();
-
+      avanzarSeguro();
     } else {
-
       detener();
-      Serial.println("PARED DESPUES DEL GIRO");
+      Serial.println("PARED TRAS GIRO");
     }
   }
 
-  // PRIORIDAD 2: FRENTE LIBRE
+  // PRIORIDAD 2: AVANZAR
   else if (frenteLibre) {
 
     Serial.println("AVANZANDO");
-
-    avanzar();
-
-    // CAMBIO: antes era 100 ms
-    delay(TIEMPO_AVANCE_FRENTE);
+    avanzarSeguro();
   }
 
   // PRIORIDAD 3: IZQUIERDA
   else {
 
-    Serial.println("PARED ENFRENTE Y DERECHA");
+    Serial.println("FRENTE BLOQUEADO");
 
+    detener();
     giro90Izquierda();
 
     leerUltrasonico();
 
+    // Si izquierda tambien bloqueada
     if (distancia > 0 &&
         distancia <= DISTANCIA_PARED) {
 
       Serial.println("CALLEJON SIN SALIDA");
-
       giro90Izquierda();
     }
 
