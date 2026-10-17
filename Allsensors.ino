@@ -3,6 +3,12 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
+// ========================================
+// ROBOREGOS - PISTA A (MAZE)
+// 2 INFRARROJOS FRONTALES + ULTRASONICO
+// ========================================
+
+// -------- MOTORES --------
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -16,47 +22,55 @@ const int STBY = 11;
 // -------- SENSORES --------
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
-const int IR_PIN = 7;
+
+// DOS INFRARROJOS FRONTALES
+const int IR_DERECHO = 7;
+const int IR_IZQUIERDO = 10;
 
 // -------- LEDS --------
 const int pink_pin = 9;
-const int orange_pin = 10;
+const int orange_pin = 8;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// -------- SENSOR RGB --------
+// -------- RGB --------
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
-
+// ========================================
 // CONFIGURACION
+// ========================================
+
 const int VELOCIDAD = 220;
 const int VELOCIDAD_GIRO = 220;
 
 // Distancias en centimetros
-const float DISTANCIA_PARED = 10.0;
-const float DISTANCIA_LIBRE = 20.0;
+const float DISTANCIA_PARED = 18.0;
+const float DISTANCIA_LIBRE = 28.0;
 
-// Tiempo de cada giro
+// Giros pequeños
 const unsigned long TIEMPO_GIRO_PASO = 80;
-
-// Maximo de pasos al buscar salida
 const int MAX_PASOS_BUSQUEDA = 18;
 
-// CORRECCION CONFIRMADA DE MOTORES
+// Inversion de motores
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = true;
 
-// Configuracion del infrarrojo
+// LOW significa pared detectada
+// Cambiar a HIGH si los sensores
+// funcionan al reves
 const int IR_PARED = LOW;
 
-// Intervalos de lectura
+// Intervalos
 const unsigned long INTERVALO_RGB = 250;
 const unsigned long INTERVALO_SERIAL = 400;
 
+// ========================================
 // VARIABLES
+// ========================================
+
 float distancia = -1;
 
 float rojo = 0;
@@ -70,8 +84,10 @@ String colorDetectado = "SIN LECTURA";
 unsigned long ultimaLecturaRGB = 0;
 unsigned long ultimoSerial = 0;
 
-
+// ========================================
 // CONTROL DE MOTORES
+// ========================================
+
 void moverMotores(int izquierda, int derecha) {
 
   izquierda = constrain(izquierda, -255, 255);
@@ -115,7 +131,10 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
+// ========================================
 // LEDS
+// ========================================
+
 void apagarLeds() {
 
   digitalWrite(pink_pin, LOW);
@@ -141,8 +160,10 @@ void probarLeds() {
   }
 }
 
+// ========================================
+// ULTRASONICO
+// ========================================
 
-// SENSOR ULTRASONICO
 void leerUltrasonico() {
 
   digitalWrite(TRIGGER_PIN, LOW);
@@ -150,7 +171,6 @@ void leerUltrasonico() {
 
   digitalWrite(TRIGGER_PIN, HIGH);
   delayMicroseconds(10);
-
   digitalWrite(TRIGGER_PIN, LOW);
 
   unsigned long tiempo =
@@ -163,12 +183,51 @@ void leerUltrasonico() {
   }
 }
 
-// SENSOR INFRARROJO
+// ========================================
+// INFRARROJOS FRONTALES
+// ========================================
+
 bool paredDerecha() {
-  return digitalRead(IR_PIN) == IR_PARED;
+  return digitalRead(IR_DERECHO) == IR_PARED;
 }
 
-// SENSOR DE COLOR RGB
+bool paredIzquierda() {
+  return digitalRead(IR_IZQUIERDO) == IR_PARED;
+}
+
+bool obstaculoFrontal() {
+
+  // Basta que uno detecte pared
+  return paredDerecha() || paredIzquierda();
+}
+
+// ========================================
+// COMPROBAR CAMINO LIBRE
+// ========================================
+
+bool caminoLibre() {
+
+  leerUltrasonico();
+
+  if (distancia < 0) {
+    return false;
+  }
+
+  if (distancia < DISTANCIA_LIBRE) {
+    return false;
+  }
+
+  if (obstaculoFrontal()) {
+    return false;
+  }
+
+  return true;
+}
+
+// ========================================
+// SENSOR RGB
+// ========================================
+
 void leerColor() {
 
   if (!colorDisponible) {
@@ -234,9 +293,6 @@ void leerColor() {
   }
 }
 
-
-// ACTUALIZAR RGB
-
 void actualizarRGB() {
 
   if (millis() - ultimaLecturaRGB >= INTERVALO_RGB) {
@@ -246,7 +302,9 @@ void actualizarRGB() {
   }
 }
 
+// ========================================
 // MONITOR SERIAL
+// ========================================
 
 void mostrarSensores() {
 
@@ -258,17 +316,15 @@ void mostrarSensores() {
 
   Serial.println("===== PISTA A =====");
 
-  Serial.print("Distancia frontal: ");
+  Serial.print("Ultrasonico: ");
+  Serial.print(distancia);
+  Serial.println(" cm");
 
-  if (distancia < 0) {
-    Serial.println("SIN ECO");
-  } else {
-    Serial.print(distancia);
-    Serial.println(" cm");
-  }
+  Serial.print("IR DERECHO: ");
+  Serial.println(paredDerecha() ? "PARED" : "LIBRE");
 
-  Serial.print("Pared derecha: ");
-  Serial.println(paredDerecha() ? "SI" : "NO");
+  Serial.print("IR IZQUIERDO: ");
+  Serial.println(paredIzquierda() ? "PARED" : "LIBRE");
 
   Serial.print("Color: ");
   Serial.println(colorDetectado);
@@ -276,7 +332,10 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
-// BUSCAR CAMINO LIBRE
+// ========================================
+// BUSCAR SALIDA
+// ========================================
+
 bool buscarSalida() {
 
   detener();
@@ -285,25 +344,22 @@ bool buscarSalida() {
 
   for (int i = 0; i < MAX_PASOS_BUSQUEDA; i++) {
 
-    leerUltrasonico();
+    actualizarRGB();
 
-    // dejamos de girar.
-    if (distancia >= DISTANCIA_LIBRE) {
+    if (caminoLibre()) {
 
       detener();
 
-      Serial.println("CAMINO LIBRE ENCONTRADO");
-
+      Serial.println("SALIDA ENCONTRADA");
       return true;
     }
 
-    // Girar poco a poco a la izquierda
+    // Giro pequeño hacia la izquierda
     girarIzquierda();
 
     delay(TIEMPO_GIRO_PASO);
 
     detener();
-
     delay(30);
   }
 
@@ -314,18 +370,18 @@ bool buscarSalida() {
   return false;
 }
 
+// ========================================
 // RESOLVER MAZE
+// ========================================
+
 void resolverMaze() {
 
-  // Leer distancia frontal
   leerUltrasonico();
 
-  // Actualizar RGB y monitor
   actualizarRGB();
   mostrarSensores();
 
-  // Si no hay lectura confiable,
-  // detener por seguridad.
+  // Sin lectura ultrasonica
   if (distancia < 0) {
 
     detener();
@@ -333,36 +389,40 @@ void resolverMaze() {
     Serial.println("SIN ECO - DETENIDO");
 
     delay(100);
-
     return;
   }
 
-  // PRIORIDAD 1: AVANZAR
+  bool irDerecho = paredDerecha();
+  bool irIzquierdo = paredIzquierda();
 
+  // =====================================
+  // AVANZAR SI TODO ESTA LIBRE
+  // =====================================
 
-  if (distancia > DISTANCIA_PARED) {
+  if (distancia > DISTANCIA_PARED &&
+      !irDerecho &&
+      !irIzquierdo) {
 
     avanzar();
-
     return;
   }
-  
-  // PRIORIDAD 2: EVITAR PARED
+
+  // =====================================
+  // OBSTACULO DETECTADO
+  // =====================================
 
   detener();
 
-  Serial.println("PARED DETECTADA");
+  Serial.println("OBSTACULO DETECTADO");
 
   bool salida = buscarSalida();
 
   if (salida) {
 
-    leerUltrasonico();
-
-    if (distancia >= DISTANCIA_LIBRE) {
+    // Comprobacion final
+    if (caminoLibre()) {
 
       Serial.println("AVANZANDO");
-
       avanzar();
 
     } else {
@@ -373,12 +433,14 @@ void resolverMaze() {
   } else {
 
     detener();
-
     delay(200);
   }
 }
 
+// ========================================
 // SETUP
+// ========================================
+
 void setup() {
 
   Serial.begin(9600);
@@ -394,10 +456,13 @@ void setup() {
 
   pinMode(STBY, OUTPUT);
 
-  // Sensores
+  // Ultrasonico
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-  pinMode(IR_PIN, INPUT);
+
+  // DOS INFRARROJOS
+  pinMode(IR_DERECHO, INPUT);
+  pinMode(IR_IZQUIERDO, INPUT);
 
   // LEDs
   pinMode(pink_pin, OUTPUT);
@@ -409,7 +474,6 @@ void setup() {
   digitalWrite(STBY, LOW);
 
   detener();
-
   probarLeds();
 
   Wire.begin();
@@ -425,12 +489,15 @@ void setup() {
   digitalWrite(STBY, HIGH);
 
   Serial.println("ROBOREGOS MAZE INICIADO");
+  Serial.println("2 INFRARROJOS FRONTALES ACTIVOS");
 
   delay(2000);
 }
 
+// ========================================
+// LOOP
+// ========================================
 
-// LOOP PRINCIPAL
 void loop() {
 
   resolverMaze();
