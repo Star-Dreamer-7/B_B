@@ -3,10 +3,10 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ========================================
+// ======================================
 // CANDIDATES ROBOREGOS
 // ULTRASONICO + RGB + LEDS
-// ========================================
+// ======================================
 
 // ULTRASONICO
 const int TRIGGER_PIN = 2;
@@ -14,7 +14,7 @@ const int ECHO_PIN = 4;
 const float DISTANCIA_PARED = 15.0;
 
 // LEDS
-const int purple_pin = 9;
+const int pink_pin = 9;
 const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
@@ -27,50 +27,52 @@ Adafruit_TCS34725 tcs(
 
 // VARIABLES
 bool colorDisponible = false;
-float distancia = -1.0;
 
+float distancia = -1.0;
 float rojo = 0.0;
 float verde = 0.0;
 float azul = 0.0;
 
 String colorDetectado = "SIN LECTURA";
 
-// ========================================
+// ======================================
 // APAGAR LEDS
-// ========================================
+// ======================================
 void apagarLeds() {
-  digitalWrite(purple_pin, LOW);
+  digitalWrite(pink_pin, LOW);
   digitalWrite(orange_pin, LOW);
   digitalWrite(yellow_pin, LOW);
   digitalWrite(blue_pin, LOW);
 }
 
-// ========================================
+// ======================================
 // PRUEBA DE LEDS
-// ========================================
+// ======================================
 void probarLeds() {
-  apagarLeds();
+  Serial.println("Probando LED ROSA");
+  digitalWrite(pink_pin, HIGH);
+  delay(700);
+  digitalWrite(pink_pin, LOW);
 
-  digitalWrite(purple_pin, HIGH);
-  delay(500);
-  digitalWrite(purple_pin, LOW);
-
+  Serial.println("Probando LED NARANJA");
   digitalWrite(orange_pin, HIGH);
-  delay(500);
+  delay(700);
   digitalWrite(orange_pin, LOW);
 
+  Serial.println("Probando LED AMARILLO");
   digitalWrite(yellow_pin, HIGH);
-  delay(500);
+  delay(700);
   digitalWrite(yellow_pin, LOW);
 
+  Serial.println("Probando LED CELESTE");
   digitalWrite(blue_pin, HIGH);
-  delay(500);
+  delay(700);
   digitalWrite(blue_pin, LOW);
 }
 
-// ========================================
-// ULTRASONICO
-// ========================================
+// ======================================
+// LEER ULTRASONICO
+// ======================================
 void leerUltrasonico() {
   digitalWrite(TRIGGER_PIN, LOW);
   delayMicroseconds(2);
@@ -89,10 +91,11 @@ void leerUltrasonico() {
   }
 }
 
-// ========================================
-// SENSOR RGB
-// ========================================
+// ======================================
+// LEER SENSOR RGB
+// ======================================
 void leerColor() {
+
   if (!colorDisponible) {
     colorDetectado = "SENSOR NO DISPONIBLE";
     apagarLeds();
@@ -114,13 +117,23 @@ void leerColor() {
 
   apagarLeds();
 
-  // MAGENTA
-  if (rojo > verde * 1.25 &&
-      azul > verde * 1.15 &&
-      rojo > 0.30) {
+  // ROSA
+  if (rojo > verde * 1.20 &&
+      rojo > azul * 1.10 &&
+      azul > verde * 0.85) {
 
-    colorDetectado = "MAGENTA";
-    digitalWrite(purple_pin, HIGH);
+    colorDetectado = "ROSA";
+    digitalWrite(pink_pin, HIGH);
+  }
+
+  // AMARILLO
+  else if (rojo > azul * 1.35 &&
+           verde > azul * 1.35 &&
+           abs(rojo - verde) < 0.20 &&
+           verde > 0.20) {
+
+    colorDetectado = "AMARILLO";
+    digitalWrite(yellow_pin, HIGH);
   }
 
   // NARANJA
@@ -130,15 +143,6 @@ void leerColor() {
 
     colorDetectado = "NARANJA";
     digitalWrite(orange_pin, HIGH);
-  }
-
-  // AMARILLO
-  else if (rojo > azul * 1.35 &&
-           verde > azul * 1.35 &&
-           abs(rojo - verde) < 0.20) {
-
-    colorDetectado = "AMARILLO";
-    digitalWrite(yellow_pin, HIGH);
   }
 
   // CELESTE
@@ -154,13 +158,14 @@ void leerColor() {
   }
 }
 
-// ========================================
-// MOSTRAR LECTURAS
-// ========================================
+// ======================================
+// MOSTRAR SENSORES
+// ======================================
 void mostrarSensores() {
+
   Serial.println("===== SENSORES =====");
 
-  Serial.print("Ultrasonico: ");
+  Serial.print("Distancia: ");
 
   if (distancia < 0) {
     Serial.println("SIN ECO");
@@ -179,7 +184,7 @@ void mostrarSensores() {
     Serial.println("NO");
   }
 
-  Serial.print("Color: ");
+  Serial.print("Color detectado: ");
   Serial.println(colorDetectado);
 
   Serial.print("RGB: ");
@@ -192,16 +197,16 @@ void mostrarSensores() {
   Serial.println("====================");
 }
 
-// ========================================
+// ======================================
 // SETUP
-// ========================================
+// ======================================
 void setup() {
   Serial.begin(9600);
 
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  pinMode(purple_pin, OUTPUT);
+  pinMode(pink_pin, OUTPUT);
   pinMode(orange_pin, OUTPUT);
   pinMode(yellow_pin, OUTPUT);
   pinMode(blue_pin, OUTPUT);
@@ -209,9 +214,11 @@ void setup() {
   digitalWrite(TRIGGER_PIN, LOW);
   apagarLeds();
 
+  // Probar los cuatro LEDs
   probarLeds();
 
   Wire.begin();
+
   colorDisponible = tcs.begin();
 
   if (colorDisponible) {
@@ -223,9 +230,9 @@ void setup() {
   Serial.println("Sistema inicializado");
 }
 
-// ========================================
-// LOOP
-// ========================================
+// ======================================
+// LOOP PRINCIPAL
+// ======================================
 void loop() {
   leerUltrasonico();
   leerColor();
@@ -233,10 +240,3 @@ void loop() {
 
   delay(400);
 }
-
-
-
-
-
-
-
