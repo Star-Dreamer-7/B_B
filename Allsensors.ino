@@ -5,7 +5,7 @@
 
 // ========================================
 // ROBOREGOS CANDIDATES 2026
-// PISTA A - INTEGRACION Y PRUEBA
+// PISTA A - PRUEBA CONTINUA
 // ========================================
 
 // MOTORES - TB6612FNG
@@ -41,7 +41,6 @@ const int VELOCIDAD = 140;
 const float DISTANCIA_PARED = 15.0;
 const int IR_PARED = LOW;
 
-// Cambiar si alguna rueda gira al reves
 const bool INVERTIR_IZQUIERDO = false;
 const bool INVERTIR_DERECHO = false;
 
@@ -257,31 +256,6 @@ void mostrarSensores() {
 }
 
 // ========================================
-// PRUEBA DE MOVIMIENTO CORREGIDA
-// ========================================
-
-void pruebaMovimiento() {
-  Serial.println("AVANZAR");
-  avanzar();
-  delay(1000);
-  detener();
-  delay(1000);
-
-  Serial.println("DERECHA");
-  girarDerecha();
-  delay(500);
-  detener();
-  delay(1000);
-
-  Serial.println("IZQUIERDA");
-  girarIzquierda();
-  delay(500);
-  detener();
-
-  Serial.println("PRUEBA TERMINADA");
-}
-
-// ========================================
 // SETUP
 // ========================================
 
@@ -322,34 +296,25 @@ void setup() {
     Serial.println("ERROR RGB");
   }
 
-  Serial.println("INICIANDO PRUEBA");
-
-  // HABILITAR MOTORES
+  // HABILITAR DRIVER
   digitalWrite(STBY, HIGH);
 
+  Serial.println("INICIANDO MOVIMIENTO CONTINUO");
   delay(2000);
 }
 
 // ========================================
-// LOOP
+// LOOP - MOVIMIENTO CONTINUO
 // ========================================
 
 void loop() {
-  static bool pruebaTerminada = false;
-
   leerUltrasonico();
   leerColor();
   mostrarSensores();
 
-  if (!pruebaTerminada) {
-    pruebaTerminada = true;
+  // Las ruedas siguen girando
+  avanzar();
 
-    // Ejecutar una sola vez
-    // con las ruedas levantadas
-    pruebaMovimiento();
-  }
-
-  detener();
   delay(400);
 }
 
