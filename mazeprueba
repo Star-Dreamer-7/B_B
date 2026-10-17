@@ -5,7 +5,7 @@
 
 // ========================================
 // ROBOREGOS - PISTA B
-// EXPLORACION CON MEMORIA APROXIMADA
+// BUSQUEDA RAPIDA + MEMORIA APROXIMADA
 // ========================================
 
 // ---------- MOTORES TB6612FNG ----------
@@ -33,7 +33,7 @@ const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// ---------- RGB ----------
+// ---------- SENSOR RGB ----------
 
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
@@ -41,41 +41,45 @@ Adafruit_TCS34725 tcs(
 );
 
 // ========================================
-// CONFIGURACION CALIBRADA
+// CONFIGURACION
 // ========================================
 
 const int VELOCIDAD = 210;
 const int VELOCIDAD_GIRO = 220;
 
+// NO CAMBIAR: ambos motores ya calibrados
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = true;
 
 // 30 cm aproximadamente
 const unsigned long TIEMPO_CASILLA = 4000;
 
-// Giro aproximado de 90 grados
+// Giro de 90 grados calibrado
 const unsigned long TIEMPO_GIRO_90 = 2000;
 
-// Distancia de seguridad
+// Giro de 30 grados estimado
+const unsigned long TIEMPO_GIRO_30 = 667;
+
+// Distancias en centimetros
 const float DISTANCIA_PARED = 15.0;
 const float DISTANCIA_LIBRE = 20.0;
+
+// Para aceptar una abertura en un escaneo
+const float DISTANCIA_ABERTURA = 25.0;
 
 // Intervalos
 const unsigned long INTERVALO_ULTRASONICO = 60;
 const unsigned long INTERVALO_RGB = 500;
 
 // ========================================
-// MEMORIA DEL RECORRIDO
+// MEMORIA
 // ========================================
-
-// Cuadricula virtual centrada en el robot.
-// NO es un mapa cargado previamente.
 
 const int MAPA_SIZE = 15;
 
 byte visitadas[MAPA_SIZE][MAPA_SIZE];
 
-// Posicion inicial aproximada
+// Posicion inicial
 int posX = MAPA_SIZE / 2;
 int posY = MAPA_SIZE / 2;
 
@@ -101,8 +105,6 @@ bool colorDisponible = false;
 float rojo = 0;
 float verde = 0;
 float azul = 0;
-
-String colorDetectado = "SIN LECTURA";
 
 unsigned long ultimaLecturaRGB = 0;
 
@@ -176,23 +178,15 @@ void leerUltrasonico() {
   }
 }
 
-bool frenteLibre() {
+bool espacioLibre(float minimo) {
 
   leerUltrasonico();
 
-  return distancia >= DISTANCIA_LIBRE;
+  return distancia >= minimo;
 }
 
 // ========================================
-// INFRARROJO
-// ========================================
-
-bool obstaculoIR() {
-  return digitalRead(IR_PIN) == LOW;
-}
-
-// ========================================
-// LEDS
+// RGB Y LEDS
 // ========================================
 
 void apagarLeds() {
@@ -203,14 +197,9 @@ void apagarLeds() {
   digitalWrite(blue_pin, LOW);
 }
 
-// ========================================
-// RGB
-// ========================================
-
 void leerColor() {
 
   if (!colorDisponible) {
-    colorDetectado = "RGB NO DISPONIBLE";
     apagarLeds();
     return;
   }
@@ -220,7 +209,6 @@ void leerColor() {
   tcs.getRawData(&r, &g, &b, &c);
 
   if (c == 0) {
-    colorDetectado = "SIN LECTURA";
     apagarLeds();
     return;
   }
@@ -231,46 +219,43 @@ void leerColor() {
 
   apagarLeds();
 
+  // ROSA
   if (rojo > verde * 1.20 &&
       rojo > azul * 1.10 &&
       azul > verde * 0.85) {
 
-    colorDetectado = "ROSA";
     digitalWrite(pink_pin, HIGH);
   }
 
+  // AMARILLO
   else if (rojo > azul * 1.35 &&
            verde > azul * 1.35 &&
            fabs(rojo - verde) < 0.20 &&
            verde > 0.20) {
 
-    colorDetectado = "AMARILLO";
     digitalWrite(yellow_pin, HIGH);
   }
 
+  // NARANJA
   else if (rojo > verde * 1.30 &&
            verde > azul * 1.15 &&
            verde > 0.15) {
 
-    colorDetectado = "NARANJA";
     digitalWrite(orange_pin, HIGH);
   }
 
+  // CELESTE
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
 
-    colorDetectado = "CELESTE";
     digitalWrite(blue_pin, HIGH);
-  }
-
-  else {
-    colorDetectado = "NO IDENTIFICADO";
   }
 }
 
 void actualizarRGB() {
 
-  if (millis() - ultimaLecturaRGB >= INTERVALO_RGB) {
+  if (millis() - ultimaLecturaRGB >=
+      INTERVALO_RGB) {
 
     ultimaLecturaRGB = millis();
     leerColor();
@@ -278,7 +263,7 @@ void actualizarRGB() {
 }
 
 // ========================================
-// MEMORIA
+// MEMORIA DE CASILLAS
 // ========================================
 
 bool posicionValida(int x, int y) {
@@ -311,7 +296,7 @@ void registrarCasilla() {
     visitadas[posY][posX]++;
   }
 
-  Serial.print("POSICION ESTIMADA: ");
+  Serial.print("POSICION: ");
   Serial.print(posX);
   Serial.print(",");
   Serial.println(posY);
@@ -332,13 +317,29 @@ void actualizarPosicion() {
 }
 
 // ========================================
-// GIROS DE 90 GRADOS
+// GIROS
 // ========================================
 
-void girar90Derecha() {
+// Giro pequeno SIN actualizar orientacion.
+// Solo se usa durante el escaneo.
 
+void girarPasoDerecha() {
+
+  girarDerecha();
+  delay(TIEMPO_GIRO_30);
   detener();
-  delay(100);
+}
+
+void girarPasoIzquierda() {
+
+  girarIzquierda();
+  delay(TIEMPO_GIRO_30);
+  detener();
+}
+
+// Giro completo de 90 grados
+
+void girar90Derecha() {
 
   girarDerecha();
   delay(TIEMPO_GIRO_90);
@@ -348,9 +349,6 @@ void girar90Derecha() {
 }
 
 void girar90Izquierda() {
-
-  detener();
-  delay(100);
 
   girarIzquierda();
   delay(TIEMPO_GIRO_90);
@@ -366,7 +364,7 @@ void girar180() {
 }
 
 // ========================================
-// AVANZAR UNA CASILLA APROXIMADA
+// AVANZAR UNA CASILLA
 // ========================================
 
 bool avanzarCasilla() {
@@ -384,24 +382,15 @@ bool avanzarCasilla() {
         INTERVALO_ULTRASONICO) {
 
       ultimaRevision = ahora;
-
       leerUltrasonico();
 
-      // No continuar si no hay lectura
-      if (distancia < 0) {
+      if (distancia < 0 ||
+          distancia <= DISTANCIA_PARED) {
 
         detener();
 
-        Serial.println("ERROR ULTRASONICO");
-        return false;
-      }
+        Serial.println("OBSTACULO O ERROR");
 
-      // Detener antes de una pared
-      if (distancia <= DISTANCIA_PARED) {
-
-        detener();
-
-        Serial.println("OBSTACULO FRONTAL");
         return false;
       }
     }
@@ -411,127 +400,157 @@ bool avanzarCasilla() {
 
   detener();
 
-  // Se completaron los 4 segundos
   actualizarPosicion();
 
   return true;
 }
 
 // ========================================
-// EXPLORAR DIRECCIONES
+// ESCANEO RAPIDO
 // ========================================
 
-// Revisa el frente, derecha e izquierda.
-// Da prioridad a las casillas menos visitadas.
+// Busca una abertura girando en pasos de
+// aproximadamente 30 grados.
 //
-// IMPORTANTE:
-// Los sensores miran al frente.
-// Para revisar un lado, gira el robot.
+// Si encuentra una abertura antes de 90°,
+// termina de girar hasta 90° y confirma.
+//
+// Si no encuentra salida, regresa a la
+// orientacion original.
 
-bool elegirDireccion() {
+bool escanearDerecha() {
 
-  int orientacionInicial = orientacion;
+  Serial.println("BUSCANDO DERECHA");
 
-  // Direcciones relativas:
-  // 0 = frente
-  // 1 = derecha
-  // 3 = izquierda
-  // 2 = atras
+  int pasos = 0;
+  bool aberturaDetectada = false;
 
-  bool libre[4] = {
-    false, false, false, false
-  };
+  // Hasta 90 grados hacia la derecha
+  for (int i = 0; i < 3; i++) {
 
-  byte visitas[4] = {
-    255, 255, 255, 255
-  };
+    girarPasoDerecha();
+    pasos++;
 
-  // 1. REVISAR FRENTE
-  libre[0] = frenteLibre();
+    delay(100);
 
-  visitas[0] = vecesVisitada(
-    orientacionInicial
-  );
-
-  // 2. REVISAR DERECHA
-  girar90Derecha();
-
-  libre[1] = frenteLibre();
-
-  visitas[1] = vecesVisitada(
-    orientacionInicial
-  );
-
-  // 3. REVISAR ATRAS
-  girar90Derecha();
-
-  libre[2] = frenteLibre();
-
-  visitas[2] = vecesVisitada(
-    orientacionInicial
-  );
-
-  // 4. REVISAR IZQUIERDA
-  girar90Derecha();
-
-  libre[3] = frenteLibre();
-
-  visitas[3] = vecesVisitada(
-    orientacionInicial
-  );
-
-  // Regresar a la orientacion inicial
-  girar90Derecha();
-
-  // ==================================
-  // ELEGIR CAMINO MENOS VISITADO
-  // ==================================
-
-  int mejorDireccion = -1;
-  byte menorVisitas = 255;
-
-  // Prioridad en empates:
-  // frente, derecha, izquierda, atras
-
-  int orden[4] = {0, 1, 3, 2};
-
-  for (int i = 0; i < 4; i++) {
-
-    int d = orden[i];
-
-    if (libre[d] && visitas[d] < menorVisitas) {
-
-      menorVisitas = visitas[d];
-      mejorDireccion = d;
+    if (espacioLibre(DISTANCIA_ABERTURA)) {
+      aberturaDetectada = true;
+      break;
     }
   }
 
-  if (mejorDireccion == -1) {
+  if (aberturaDetectada) {
 
-    Serial.println("NO HAY CAMINO LIBRE");
-    detener();
+    // Completar los 90 grados
+    while (pasos < 3) {
+      girarPasoDerecha();
+      pasos++;
+    }
 
-    return false;
+    delay(100);
+
+    // Confirmar frente alineado
+    if (espacioLibre(DISTANCIA_ABERTURA)) {
+
+      orientacion = (orientacion + 1) % 4;
+
+      Serial.println("SALIDA DERECHA");
+      return true;
+    }
   }
 
-  Serial.print("DIRECCION ELEGIDA: ");
-  Serial.println(mejorDireccion);
-
-  // Girar hacia la direccion elegida
-
-  if (mejorDireccion == 1) {
-    girar90Derecha();
+  // Regresar exactamente los pasos girados
+  for (int i = 0; i < pasos; i++) {
+    girarPasoIzquierda();
   }
 
-  else if (mejorDireccion == 3) {
-    girar90Izquierda();
+  detener();
+  return false;
+}
+
+bool escanearIzquierda() {
+
+  Serial.println("BUSCANDO IZQUIERDA");
+
+  int pasos = 0;
+  bool aberturaDetectada = false;
+
+  // Hasta 90 grados hacia la izquierda
+  for (int i = 0; i < 3; i++) {
+
+    girarPasoIzquierda();
+    pasos++;
+
+    delay(100);
+
+    if (espacioLibre(DISTANCIA_ABERTURA)) {
+      aberturaDetectada = true;
+      break;
+    }
   }
 
-  else if (mejorDireccion == 2) {
-    girar180();
+  if (aberturaDetectada) {
+
+    // Completar los 90 grados
+    while (pasos < 3) {
+      girarPasoIzquierda();
+      pasos++;
+    }
+
+    delay(100);
+
+    if (espacioLibre(DISTANCIA_ABERTURA)) {
+
+      orientacion = (orientacion + 3) % 4;
+
+      Serial.println("SALIDA IZQUIERDA");
+      return true;
+    }
   }
 
-  return true;
+  // Regresar a la orientacion inicial
+  for (int i = 0; i < pasos; i++) {
+    girarPasoDerecha();
+  }
+
+  detener();
+  return false;
+}
+
+// ========================================
+// ELEGIR SALIDA
+// ========================================
+
+bool buscarSalidaRapida() {
+
+  detener();
+
+  // Primero buscar a la derecha
+  if (escanearDerecha()) {
+    return true;
+  }
+
+  // Si no encuentra, buscar izquierda
+  if (escanearIzquierda()) {
+    return true;
+  }
+
+  // Si ambos lados estan bloqueados,
+  // intentar regresar
+  Serial.println("BUSCANDO ATRAS");
+
+  girar180();
+
+  if (espacioLibre(DISTANCIA_LIBRE)) {
+
+    Serial.println("RETROCEDIENDO POR OTRA RUTA");
+    return true;
+  }
+
+  Serial.println("SIN SALIDA SEGURA");
+  detener();
+
+  return false;
 }
 
 // ========================================
@@ -540,44 +559,37 @@ bool elegirDireccion() {
 
 void explorarPistaB() {
 
-  // Actualizar sensor RGB
   actualizarRGB();
 
-  // Comprobar frente
   leerUltrasonico();
 
+  // Si no hay lectura, detener
   if (distancia < 0) {
 
     detener();
-
-    Serial.println("SIN LECTURA");
     delay(100);
-
     return;
   }
 
-  // Si el frente esta libre y la casilla
-  // siguiente no ha sido visitada,
-  // avanzar directamente.
-
+  // Avanzar si hay camino libre
+  // y la siguiente casilla no esta visitada
   if (distancia >= DISTANCIA_LIBRE &&
       vecesVisitada(orientacion) == 0) {
 
-    Serial.println("AVANZANDO A CASILLA NUEVA");
+    Serial.println("AVANZANDO");
 
     avanzarCasilla();
-
     return;
   }
 
-  // Si hay pared o la siguiente casilla
-  // ya fue visitada, explorar opciones.
+  // Si encuentra pared o camino visitado,
+  // buscar una nueva salida
 
   detener();
 
-  Serial.println("EXPLORANDO DIRECCIONES");
+  Serial.println("BUSCANDO NUEVA RUTA");
 
-  if (elegirDireccion()) {
+  if (buscarSalidaRapida()) {
 
     avanzarCasilla();
 
@@ -624,7 +636,7 @@ void setup() {
   detener();
   apagarLeds();
 
-  // Inicializar mapa vacio
+  // Limpiar memoria
   for (int y = 0; y < MAPA_SIZE; y++) {
 
     for (int x = 0; x < MAPA_SIZE; x++) {
@@ -635,9 +647,8 @@ void setup() {
 
   registrarCasilla();
 
-  // RGB
+  // Inicializar RGB
   Wire.begin();
-
   colorDisponible = tcs.begin();
 
   Serial.println(
@@ -646,10 +657,10 @@ void setup() {
     "RGB NO DETECTADO"
   );
 
-  // Activar driver
+  // Activar motores
   digitalWrite(STBY, HIGH);
 
-  Serial.println("PISTA B CON MEMORIA");
+  Serial.println("PISTA B - BUSQUEDA RAPIDA");
   Serial.println("INICIANDO EN 3 SEGUNDOS");
 
   delay(3000);
