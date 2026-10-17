@@ -1,69 +1,77 @@
+
+#include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
-#include <Arduino.h>
-#define TRIGGER_PIN 9
-#define ECHO_PIN 10
-int ir_pin = 6;
-int led_pin =13;
-int hasObstacle =LOW;
-// Pines de los LEDs
-const int purple_pin = 2;
-const int orange_pin = 4;
-const int yellow_pin = 8;
-const int blue_pin = 12;
-float ut= 0;
-String rb = "";
-int ij = 0;
-const int wait = 500;
 
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(
+// ========================================
+// CANDIDATES ROBOREGOS
+// ULTRASONICO + RGB + LEDS
+// ========================================
+
+// ULTRASONICO
+const int TRIGGER_PIN = 2;
+const int ECHO_PIN = 4;
+const float DISTANCIA_PARED = 15.0;
+
+// LEDS
+const int purple_pin = 9;
+const int orange_pin = 10;
+const int yellow_pin = 3;
+const int blue_pin = 12;
+
+// SENSOR RGB
+Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
+
+// VARIABLES
+bool colorDisponible = false;
+float distancia = -1.0;
+
+float rojo = 0.0;
+float verde = 0.0;
+float azul = 0.0;
+
+String colorDetectado = "SIN LECTURA";
+
+// ========================================
+// APAGAR LEDS
+// ========================================
 void apagarLeds() {
   digitalWrite(purple_pin, LOW);
   digitalWrite(orange_pin, LOW);
   digitalWrite(yellow_pin, LOW);
   digitalWrite(blue_pin, LOW);
 }
-void setup() {
- Serial.begin(9600);
 
-  pinMode(ir_pin, INPUT);
-  pinMode(led_pin, OUTPUT);
-  pinMode(TRIGGER_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  
-  pinMode(purple_pin, OUTPUT);
-  pinMode(orange_pin, OUTPUT);
-  pinMode(yellow_pin, OUTPUT);
-  pinMode(blue_pin, OUTPUT);
-  
+// ========================================
+// PRUEBA DE LEDS
+// ========================================
+void probarLeds() {
   apagarLeds();
 
-  Serial.println("Inicializando...");
+  digitalWrite(purple_pin, HIGH);
+  delay(500);
+  digitalWrite(purple_pin, LOW);
 
-  if (!tcs.begin()) {
-    Serial.println("No se encontro el sensor TCS34725");
-    while (1); // Se congela aquí si no detecta el sensor RGB
-  }
-  Serial.println("Sensor RGB listo");
+  digitalWrite(orange_pin, HIGH);
+  delay(500);
+  digitalWrite(orange_pin, LOW);
+
+  digitalWrite(yellow_pin, HIGH);
+  delay(500);
+  digitalWrite(yellow_pin, LOW);
+
+  digitalWrite(blue_pin, HIGH);
+  delay(500);
+  digitalWrite(blue_pin, LOW);
 }
 
-
-void loop() {
-  sensorUltrasonico();
-  sensorRgb();
-  sensorInfrarrojo();
-
-  Serial.println("---Resumen sensores---");
-  Serial.print("Ultrasonico: "); Serial.print(ut); Serial.print("cm | ");
-  Serial.print("Rgb: "); Serial.print(rb); Serial.print(" | ");
-  Serial.print("Infrarrojo: "); Serial.print(ij == LOW ? "STOP" : "GO AHEAD THE PATH IS CLEAR");
-  Serial.println("----------------\n");
-delay(2000);
-}
-void sensorUltrasonico(){
+// ========================================
+// ULTRASONICO
+// ========================================
+void leerUltrasonico() {
   digitalWrite(TRIGGER_PIN, LOW);
   delayMicroseconds(2);
 
@@ -71,82 +79,159 @@ void sensorUltrasonico(){
   delayMicroseconds(10);
   digitalWrite(TRIGGER_PIN, LOW);
 
-  long time = pulseIn(ECHO_PIN, HIGH);
-  if (time == 0) {
-    ut = 999.0; // Valor fuera de rango
-  } 
-  else {
-    ut = time * 0.034 / 2.0; // Distancia en cm
+  unsigned long tiempo =
+    pulseIn(ECHO_PIN, HIGH, 30000UL);
+
+  if (tiempo == 0) {
+    distancia = -1.0;
+  } else {
+    distancia = tiempo * 0.0343 / 2.0;
   }
 }
-void sensorRgb(){
-   uint16_t r, g, b, c;
 
-  // Leer sensor
-  tcs.getRawData(&r, &g, &b, &c);
-
-  if (c == 0) {
-
-    rb="Sin lectura";
+// ========================================
+// SENSOR RGB
+// ========================================
+void leerColor() {
+  if (!colorDisponible) {
+    colorDetectado = "SENSOR NO DISPONIBLE";
     apagarLeds();
     return;
   }
 
-  // Convertir a proporciones
-  float rojo = (float)r / c;
-  float verde = (float)g / c;
-  float azul = (float)b / c;
+  uint16_t r, g, b, c;
+  tcs.getRawData(&r, &g, &b, &c);
 
+  if (c == 0) {
+    colorDetectado = "SIN LECTURA";
+    apagarLeds();
+    return;
+  }
+
+  rojo = (float)r / c;
+  verde = (float)g / c;
+  azul = (float)b / c;
 
   apagarLeds();
 
-  // DETECTAR COLOR
+  // MAGENTA
+  if (rojo > verde * 1.25 &&
+      azul > verde * 1.15 &&
+      rojo > 0.30) {
 
-  if (rojo > 0.50 && verde < 0.22 && azul >= 0.20) {
-
-    rb="MAGENTA";
-
+    colorDetectado = "MAGENTA";
     digitalWrite(purple_pin, HIGH);
   }
 
-  else if (rojo > 0.45 && verde > 0.25 && azul < 0.25) {
+  // NARANJA
+  else if (rojo > verde * 1.30 &&
+           verde > azul * 1.15 &&
+           verde > 0.15) {
 
-    rb="NARANJA";
-
+    colorDetectado = "NARANJA";
     digitalWrite(orange_pin, HIGH);
   }
 
-  else if (rojo > 0.35 && verde > 0.35 && azul < 0.25) {
+  // AMARILLO
+  else if (rojo > azul * 1.35 &&
+           verde > azul * 1.35 &&
+           abs(rojo - verde) < 0.20) {
 
-    rb="AMARILLO";
-
+    colorDetectado = "AMARILLO";
     digitalWrite(yellow_pin, HIGH);
   }
 
-  else if (azul > rojo && verde > rojo) {
+  // CELESTE
+  else if (azul > rojo * 1.20 &&
+           verde > rojo * 1.10) {
 
-    rb="CELESTE";
-
+    colorDetectado = "CELESTE";
     digitalWrite(blue_pin, HIGH);
   }
 
   else {
-
-    rb="NO IDENTIFICADO";
+    colorDetectado = "NO IDENTIFICADO";
   }
 }
-void sensorInfrarrojo(){
-  hasObstacle = digitalRead(ir_pin);
-  ij=hasObstacle;
 
-if(hasObstacle ==LOW){
-  digitalWrite(led_pin,LOW);
+// ========================================
+// MOSTRAR LECTURAS
+// ========================================
+void mostrarSensores() {
+  Serial.println("===== SENSORES =====");
 
+  Serial.print("Ultrasonico: ");
+
+  if (distancia < 0) {
+    Serial.println("SIN ECO");
+  } else {
+    Serial.print(distancia);
+    Serial.println(" cm");
+  }
+
+  Serial.print("Pared enfrente: ");
+
+  if (distancia < 0) {
+    Serial.println("DESCONOCIDO");
+  } else if (distancia < DISTANCIA_PARED) {
+    Serial.println("SI");
+  } else {
+    Serial.println("NO");
+  }
+
+  Serial.print("Color: ");
+  Serial.println(colorDetectado);
+
+  Serial.print("RGB: ");
+  Serial.print(rojo, 3);
+  Serial.print(" | ");
+  Serial.print(verde, 3);
+  Serial.print(" | ");
+  Serial.println(azul, 3);
+
+  Serial.println("====================");
 }
-else{
-  digitalWrite(led_pin,HIGH);
-  
- }
+
+// ========================================
+// SETUP
+// ========================================
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(TRIGGER_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  pinMode(purple_pin, OUTPUT);
+  pinMode(orange_pin, OUTPUT);
+  pinMode(yellow_pin, OUTPUT);
+  pinMode(blue_pin, OUTPUT);
+
+  digitalWrite(TRIGGER_PIN, LOW);
+  apagarLeds();
+
+  probarLeds();
+
+  Wire.begin();
+  colorDisponible = tcs.begin();
+
+  if (colorDisponible) {
+    Serial.println("Sensor RGB listo");
+  } else {
+    Serial.println("ERROR: RGB no encontrado");
+  }
+
+  Serial.println("Sistema inicializado");
+}
+
+// ========================================
+// LOOP
+// ========================================
+void loop() {
+  leerUltrasonico();
+  leerColor();
+  mostrarSensores();
+
+  delay(400);
 }
 
 
