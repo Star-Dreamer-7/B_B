@@ -3,12 +3,12 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ========================================
+// ==========================================
 // ROBOREGOS - PISTA A (MAZE)
-// 2 IR FRONTALES + RETROCESO ANTE PARED
-// ========================================
+// 2 INFRARROJOS + ULTRASONICO + RETROCESO
+// ==========================================
 
-// MOTORES
+// ---------- MOTORES ----------
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -19,61 +19,64 @@ const int BIN2 = A3;
 
 const int STBY = 11;
 
-// ULTRASONICO
+// ---------- ULTRASONICO ----------
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
 
-// INFRARROJOS: AMBOS MIRAN AL FRENTE
+// ---------- INFRARROJOS ----------
+// Ambos miran hacia enfrente
 const int IR_DERECHO = 7;
 const int IR_IZQUIERDO = 10;
 
-// LEDS
+// ---------- LEDS ----------
 const int pink_pin = 9;
 const int orange_pin = 8;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// SENSOR RGB
+// ---------- SENSOR RGB ----------
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
-// ========================================
+// ==========================================
 // CONFIGURACION
-// ========================================
+// ==========================================
 
 const int VELOCIDAD = 220;
 const int VELOCIDAD_GIRO = 220;
 
-// Retroceso mas suave que el avance
+// Retroceso suave
 const int VELOCIDAD_RETROCESO = 150;
 
-// Ajustar despues de probar
-const unsigned long TIEMPO_RETROCESO = 250;
+// Tiempo corto de retroceso
+const unsigned long TIEMPO_RETROCESO = 220;
 
-// Distancias en centimetros
+// Distancias del ultrasonico (cm)
 const float DISTANCIA_PARED = 18.0;
+const float DISTANCIA_MUY_CERCA = 12.0;
 const float DISTANCIA_LIBRE = 28.0;
 
-// Giros de busqueda
+// Giros por pasos
 const unsigned long TIEMPO_GIRO_PASO = 80;
 const int MAX_PASOS_BUSQUEDA = 18;
 
-// Motores invertidos
+// Ambos motores invertidos
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = true;
 
-// IR detecta pared cuando marca LOW
+// Confirmado en las pruebas:
+// 0 = pared, 1 = libre
 const int IR_PARED = LOW;
 
 // Intervalos
 const unsigned long INTERVALO_RGB = 250;
 const unsigned long INTERVALO_SERIAL = 400;
 
-// ========================================
+// ==========================================
 // VARIABLES
-// ========================================
+// ==========================================
 
 float distancia = -1;
 
@@ -82,18 +85,20 @@ float verde = 0;
 float azul = 0;
 
 bool colorDisponible = false;
-
 String colorDetectado = "SIN LECTURA";
 
 unsigned long ultimaLecturaRGB = 0;
 unsigned long ultimoSerial = 0;
 
-// Evita retrocesos repetidos sin avanzar
+// Evita retrocesos consecutivos
+// cuando el robot no logra salir
 bool retrocesoRealizado = false;
 
-// ========================================
-// CONTROL DE MOTORES
-// ========================================
+unsigned long inicioAvance = 0;
+
+// ==========================================
+// MOTORES
+// ==========================================
 
 void moverMotores(int izquierda, int derecha) {
 
@@ -127,7 +132,10 @@ void avanzar() {
 }
 
 void retroceder() {
-  moverMotores(-VELOCIDAD_RETROCESO, -VELOCIDAD_RETROCESO);
+  moverMotores(
+    -VELOCIDAD_RETROCESO,
+    -VELOCIDAD_RETROCESO
+  );
 }
 
 void girarDerecha() {
@@ -138,9 +146,9 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
-// ========================================
+// ==========================================
 // LEDS
-// ========================================
+// ==========================================
 
 void apagarLeds() {
 
@@ -167,9 +175,9 @@ void probarLeds() {
   }
 }
 
-// ========================================
+// ==========================================
 // ULTRASONICO
-// ========================================
+// ==========================================
 
 void leerUltrasonico() {
 
@@ -190,9 +198,9 @@ void leerUltrasonico() {
   }
 }
 
-// ========================================
-// INFRARROJOS FRONTALES
-// ========================================
+// ==========================================
+// INFRARROJOS
+// ==========================================
 
 bool paredDerecha() {
   return digitalRead(IR_DERECHO) == IR_PARED;
@@ -206,56 +214,9 @@ bool obstaculoFrontal() {
   return paredDerecha() || paredIzquierda();
 }
 
-// ========================================
-// RETROCESO DE SEGURIDAD
-// ========================================
-
-void retrocederDePared() {
-
-  detener();
-  delay(100);
-
-  Serial.println("PARED DETECTADA - RETROCEDIENDO");
-
-  // Retroceso corto y controlado
-  // Solo si hay espacio libre detras
-  retroceder();
-  delay(TIEMPO_RETROCESO);
-
-  detener();
-  delay(150);
-
-  retrocesoRealizado = true;
-
-  Serial.println("RETROCESO TERMINADO");
-}
-
-// ========================================
-// COMPROBAR CAMINO LIBRE
-// ========================================
-
-bool caminoLibre() {
-
-  leerUltrasonico();
-
-  if (distancia < 0) {
-    return false;
-  }
-
-  if (distancia < DISTANCIA_LIBRE) {
-    return false;
-  }
-
-  if (obstaculoFrontal()) {
-    return false;
-  }
-
-  return true;
-}
-
-// ========================================
-// SENSOR RGB
-// ========================================
+// ==========================================
+// RGB
+// ==========================================
 
 void leerColor() {
 
@@ -281,7 +242,6 @@ void leerColor() {
 
   apagarLeds();
 
-  // ROSA
   if (rojo > verde * 1.20 &&
       rojo > azul * 1.10 &&
       azul > verde * 0.85) {
@@ -290,7 +250,6 @@ void leerColor() {
     digitalWrite(pink_pin, HIGH);
   }
 
-  // AMARILLO
   else if (rojo > azul * 1.35 &&
            verde > azul * 1.35 &&
            fabs(rojo - verde) < 0.20 &&
@@ -300,7 +259,6 @@ void leerColor() {
     digitalWrite(yellow_pin, HIGH);
   }
 
-  // NARANJA
   else if (rojo > verde * 1.30 &&
            verde > azul * 1.15 &&
            verde > 0.15) {
@@ -309,7 +267,6 @@ void leerColor() {
     digitalWrite(orange_pin, HIGH);
   }
 
-  // CELESTE
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
 
@@ -331,9 +288,9 @@ void actualizarRGB() {
   }
 }
 
-// ========================================
+// ==========================================
 // MONITOR SERIAL
-// ========================================
+// ==========================================
 
 void mostrarSensores() {
 
@@ -361,15 +318,66 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
-// ========================================
+// ==========================================
+// CAMINO LIBRE
+// ==========================================
+
+bool caminoLibre() {
+
+  leerUltrasonico();
+
+  if (distancia < DISTANCIA_LIBRE) {
+    return false;
+  }
+
+  if (obstaculoFrontal()) {
+    return false;
+  }
+
+  return true;
+}
+
+// ==========================================
+// RETROCEDER DE PARED
+// ==========================================
+
+void retrocederDePared() {
+
+  detener();
+  delay(100);
+
+  Serial.println("PARED CERCA: RETROCEDIENDO");
+
+  // Solo un retroceso corto.
+  // El robot NO tiene sensor trasero.
+  retroceder();
+  delay(TIEMPO_RETROCESO);
+
+  detener();
+  delay(150);
+
+  retrocesoRealizado = true;
+
+  Serial.println("RETROCESO TERMINADO");
+}
+
+// ==========================================
 // BUSCAR SALIDA
-// ========================================
+// ==========================================
 
 bool buscarSalida() {
 
   detener();
 
-  Serial.println("BUSCANDO CAMINO LIBRE");
+  Serial.println("BUSCANDO SALIDA");
+
+  // Si detecta pared solo a la izquierda,
+  // empieza girando hacia la derecha.
+  // Si detecta pared a la derecha o ambos,
+  // empieza girando hacia la izquierda.
+
+  bool girarHaciaDerecha =
+    paredIzquierda() && !paredDerecha();
 
   for (int i = 0; i < MAX_PASOS_BUSQUEDA; i++) {
 
@@ -383,8 +391,12 @@ bool buscarSalida() {
       return true;
     }
 
-    // Girar en pasos pequeños
-    girarIzquierda();
+    if (girarHaciaDerecha) {
+      girarDerecha();
+    } else {
+      girarIzquierda();
+    }
+
     delay(TIEMPO_GIRO_PASO);
 
     detener();
@@ -394,12 +406,13 @@ bool buscarSalida() {
   detener();
 
   Serial.println("NO SE ENCONTRO SALIDA");
+
   return false;
 }
 
-// ========================================
+// ==========================================
 // RESOLVER MAZE
-// ========================================
+// ==========================================
 
 void resolverMaze() {
 
@@ -411,7 +424,7 @@ void resolverMaze() {
   bool irDerecho = paredDerecha();
   bool irIzquierdo = paredIzquierda();
 
-  // Si el ultrasonico no responde
+  // Sin eco: detenerse
   if (distancia < 0) {
 
     detener();
@@ -420,47 +433,62 @@ void resolverMaze() {
     return;
   }
 
-  // =====================================
-  // CAMINO LIBRE
-  // =====================================
+  // ========================================
+  // 1. CAMINO LIBRE: AVANZAR
+  // ========================================
 
   if (distancia > DISTANCIA_PARED &&
       !irDerecho &&
       !irIzquierdo) {
 
+    if (inicioAvance == 0) {
+      inicioAvance = millis();
+    }
+
     avanzar();
 
-    // Ya avanzo, puede retroceder
-    // nuevamente ante otro obstaculo
-    retrocesoRealizado = false;
+    // Solo permitir otro retroceso
+    // despues de avanzar al menos 500 ms
+    if (millis() - inicioAvance >= 500) {
+      retrocesoRealizado = false;
+    }
 
     return;
   }
 
-  // =====================================
-  // PARED DETECTADA
-  // =====================================
+  // ========================================
+  // 2. PARED: DETENERSE
+  // ========================================
 
   detener();
+  inicioAvance = 0;
 
   Serial.println("OBSTACULO DETECTADO");
 
-  // Si un infrarrojo detecta pared,
-  // retrocede antes de intentar girar.
-  // No repetir el retroceso si aun
-  // no ha podido avanzar.
-  if ((irDerecho || irIzquierdo) &&
-      !retrocesoRealizado) {
+  // ========================================
+  // 3. RETROCEDER SI ESTA MUY CERCA
+  // ========================================
+
+  bool paredMuyCerca =
+    irDerecho ||
+    irIzquierdo ||
+    (distancia <= DISTANCIA_MUY_CERCA);
+
+  if (paredMuyCerca && !retrocesoRealizado) {
 
     retrocederDePared();
   }
 
-  // Buscar una salida
+  // ========================================
+  // 4. BUSCAR OTRA DIRECCION
+  // ========================================
+
   bool salida = buscarSalida();
 
   if (salida && caminoLibre()) {
 
     Serial.println("AVANZANDO");
+    inicioAvance = millis();
     avanzar();
 
   } else {
@@ -470,9 +498,9 @@ void resolverMaze() {
   }
 }
 
-// ========================================
+// ==========================================
 // SETUP
-// ========================================
+// ==========================================
 
 void setup() {
 
@@ -521,15 +549,16 @@ void setup() {
 
   digitalWrite(STBY, HIGH);
 
-  Serial.println("ROBOREGOS MAZE INICIADO");
-  Serial.println("2 IR + RETROCESO ACTIVADOS");
+  Serial.println("ROBOREGOS PISTA A");
+  Serial.println("RETROCESO ACTIVADO");
+  Serial.println("DOS INFRARROJOS ACTIVOS");
 
   delay(2000);
 }
 
-// ========================================
+// ==========================================
 // LOOP
-// ========================================
+// ==========================================
 
 void loop() {
   resolverMaze();
