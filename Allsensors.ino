@@ -6,7 +6,6 @@
 // ======================================
 // ROBOREGOS CANDIDATES 2026
 // PISTA A - MAZE
-// DETECCION DE PAREDES Y BUSQUEDA
 // ======================================
 
 // ======================================
@@ -41,7 +40,7 @@ const int yellow_pin = 3;
 const int blue_pin = 12;
 
 // ======================================
-// SENSOR DE COLOR
+// SENSOR RGB
 // ======================================
 
 Adafruit_TCS34725 tcs(
@@ -55,13 +54,13 @@ Adafruit_TCS34725 tcs(
 
 // Velocidades
 const int VELOCIDAD = 130;
-const int VELOCIDAD_GIRO = 160;
+const int VELOCIDAD_GIRO = 200;
 
-// Distancias del ultrasonico
-const float DISTANCIA_PARED = 25.0;
-const float DISTANCIA_LIBRE = 35.0;
+// Distancias actualizadas
+const float DISTANCIA_PARED = 5.0;
+const float DISTANCIA_LIBRE = 8.0;
 
-// Sensor infrarrojo derecho
+// Infrarrojo derecho
 const int IR_PARED = LOW;
 
 // Direccion de motores
@@ -69,10 +68,10 @@ const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = false;
 
 // Duracion de movimientos
-const unsigned long TIEMPO_AVANCE = 30;
-const unsigned long TIEMPO_GIRO_PASO = 100;
+const unsigned long TIEMPO_AVANCE = 20;
+const unsigned long TIEMPO_GIRO_PASO = 150;
 
-// Limite de pasos para buscar camino
+// Maximo de giros de busqueda
 const int MAX_PASOS_BUSQUEDA = 12;
 
 // ======================================
@@ -91,7 +90,7 @@ float azul = 0;
 String colorDetectado = "SIN LECTURA";
 
 // ======================================
-// CONTROL DE MOTORES
+// MOTORES
 // ======================================
 
 void moverMotores(int izquierda, int derecha) {
@@ -167,7 +166,7 @@ void probarLeds() {
 }
 
 // ======================================
-// SENSOR ULTRASONICO
+// ULTRASONICO
 // ======================================
 
 void leerUltrasonico() {
@@ -191,11 +190,10 @@ void leerUltrasonico() {
 }
 
 // ======================================
-// SENSOR INFRARROJO DERECHO
+// INFRARROJO DERECHO
 // ======================================
 
 bool paredDerecha() {
-
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
@@ -304,7 +302,7 @@ void mostrarSensores() {
 }
 
 // ======================================
-// AVANZAR REVISANDO DISTANCIA
+// AVANCE CON REVISION DE DISTANCIA
 // ======================================
 
 void avanzarSeguro() {
@@ -331,7 +329,7 @@ void avanzarSeguro() {
 }
 
 // ======================================
-// BUSCAR CAMINO LIBRE GIRANDO
+// BUSCAR CAMINO LIBRE
 // ======================================
 
 bool buscarSalida() {
@@ -340,12 +338,11 @@ bool buscarSalida() {
 
   Serial.println("BUSCANDO CAMINO LIBRE");
 
-  // Girar poco a poco hacia la izquierda
   for (int i = 0; i < MAX_PASOS_BUSQUEDA; i++) {
 
     leerUltrasonico();
 
-    // Si encuentra espacio suficiente
+    // Si encuentra 8 cm o mas
     if (distancia >= DISTANCIA_LIBRE) {
 
       detener();
@@ -354,14 +351,14 @@ bool buscarSalida() {
       return true;
     }
 
-    // Si sigue habiendo pared
+    // Girar a la izquierda
     Serial.println("GIRANDO A LA IZQUIERDA");
 
     girarIzquierda();
     delay(TIEMPO_GIRO_PASO);
 
     detener();
-    delay(100);
+    delay(60);
   }
 
   detener();
@@ -376,8 +373,6 @@ bool buscarSalida() {
 
 void resolverMaze() {
 
-  // Si ya se agoto la busqueda,
-  // esperar para evitar choques repetidos.
   if (robotBloqueado) {
     detener();
     return;
@@ -387,7 +382,7 @@ void resolverMaze() {
   leerColor();
   mostrarSensores();
 
-  // ERROR DE SENSOR
+  // Sin lectura
   if (distancia < 0) {
 
     detener();
@@ -397,13 +392,13 @@ void resolverMaze() {
     return;
   }
 
-  // PARED DETECTADA
+  // Pared a 5 cm o menos
   if (distancia <= DISTANCIA_PARED) {
 
     detener();
 
     Serial.println("PARED DETECTADA");
-    Serial.println("DETENER Y BUSCAR SALIDA");
+    Serial.println("BUSCANDO SALIDA");
 
     bool salidaEncontrada = buscarSalida();
 
@@ -421,7 +416,7 @@ void resolverMaze() {
     return;
   }
 
-  // CAMINO LIBRE
+  // Frente libre
   Serial.println("CAMINO LIBRE - AVANZANDO");
 
   avanzarSeguro();
@@ -435,7 +430,6 @@ void setup() {
 
   Serial.begin(9600);
 
-  // Motores
   pinMode(PWMA, OUTPUT);
   pinMode(AIN1, OUTPUT);
   pinMode(AIN2, OUTPUT);
@@ -446,12 +440,10 @@ void setup() {
 
   pinMode(STBY, OUTPUT);
 
-  // Sensores
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(IR_PIN, INPUT);
 
-  // LEDs
   pinMode(pink_pin, OUTPUT);
   pinMode(orange_pin, OUTPUT);
   pinMode(yellow_pin, OUTPUT);
@@ -461,7 +453,6 @@ void setup() {
   digitalWrite(STBY, LOW);
 
   detener();
-
   probarLeds();
 
   Wire.begin();
@@ -486,6 +477,5 @@ void setup() {
 // ======================================
 
 void loop() {
-
   resolverMaze();
 }
