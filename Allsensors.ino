@@ -3,11 +3,6 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ========================================
-// ROBOREGOS CANDIDATES 2026
-// PISTA A - PRUEBA CONTINUA
-// ========================================
-
 // MOTORES - TB6612FNG
 const int PWMA = 5;
 const int AIN1 = A0;
@@ -37,7 +32,7 @@ Adafruit_TCS34725 tcs(
 );
 
 // CONFIGURACION
-const int VELOCIDAD = 140;
+const int VELOCIDAD = 120;
 const float DISTANCIA_PARED = 15.0;
 const int IR_PARED = LOW;
 
@@ -54,9 +49,7 @@ float azul = 0;
 
 String colorDetectado = "SIN LECTURA";
 
-// ========================================
 // CONTROL DE MOTORES
-// ========================================
 
 void moverMotores(int izquierda, int derecha) {
   izquierda = constrain(izquierda, -255, 255);
@@ -100,9 +93,8 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD, VELOCIDAD);
 }
 
-// ========================================
+
 // LEDS
-// ========================================
 
 void apagarLeds() {
   digitalWrite(pink_pin, LOW);
@@ -126,9 +118,7 @@ void probarLeds() {
   }
 }
 
-// ========================================
 // ULTRASONICO
-// ========================================
 
 void leerUltrasonico() {
   digitalWrite(TRIGGER_PIN, LOW);
@@ -148,18 +138,12 @@ void leerUltrasonico() {
   }
 }
 
-// ========================================
 // INFRARROJO
-// ========================================
-
 bool paredDerecha() {
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
-// ========================================
 // SENSOR DE COLOR
-// ========================================
-
 void leerColor() {
   if (!colorDisponible) {
     colorDetectado = "RGB NO DISPONIBLE";
@@ -210,11 +194,11 @@ void leerColor() {
     digitalWrite(orange_pin, HIGH);
   }
 
-  // CELESTE
+  // AZUL
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
 
-    colorDetectado = "CELESTE";
+    colorDetectado = "AZUL";
     digitalWrite(blue_pin, HIGH);
   }
 
@@ -223,9 +207,7 @@ void leerColor() {
   }
 }
 
-// ========================================
 // MOSTRAR LECTURAS
-// ========================================
 
 void mostrarSensores() {
   Serial.println("===== PISTA A =====");
@@ -255,9 +237,7 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
-// ========================================
 // SETUP
-// ========================================
 
 void setup() {
   Serial.begin(9600);
@@ -303,9 +283,7 @@ void setup() {
   delay(2000);
 }
 
-// ========================================
 // LOOP - MOVIMIENTO CONTINUO
-// ========================================
 
 void loop() {
   leerUltrasonico();
