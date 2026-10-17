@@ -3,6 +3,11 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
+// ========================================
+// ROBOREGOS CANDIDATES 2026
+// PISTA A - WALL FOLLOWER DERECHA
+// ========================================
+
 // MOTORES - TB6612FNG
 const int PWMA = 5;
 const int AIN1 = A0;
@@ -25,33 +30,54 @@ const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// RGB
+// SENSOR RGB
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
+// ========================================
 // CONFIGURACION
-const int VELOCIDAD = 120;
+// ========================================
+
+// Velocidad de avance
+const int VELOCIDAD = 130;
+
+// Velocidad de giro
+const int VELOCIDAD_GIRO = 160;
+
+// Distancia minima antes de una pared
 const float DISTANCIA_PARED = 15.0;
+
+// IR: cambiar a HIGH si tu sensor detecta
+// paredes con valor 1
 const int IR_PARED = LOW;
 
-const bool INVERTIR_IZQUIERDO = false;
-const bool INVERTIR_DERECHO = false;
+// Corregir movimiento hacia atras
+const bool INVERTIR_IZQUIERDO = true;
+const bool INVERTIR_DERECHO = true;
+
+// AJUSTAR SEGUN TU ROBOT
+// Tiempos aproximados, NO calibrados
+const unsigned long TIEMPO_GIRO_90 = 450;
+const unsigned long TIEMPO_AVANCE_CORTO = 250;
 
 // VARIABLES
 bool colorDisponible = false;
-float distancia = -1;
 
+float distancia = -1;
 float rojo = 0;
 float verde = 0;
 float azul = 0;
 
 String colorDetectado = "SIN LECTURA";
 
+// ========================================
 // CONTROL DE MOTORES
+// ========================================
 
 void moverMotores(int izquierda, int derecha) {
+
   izquierda = constrain(izquierda, -255, 255);
   derecha = constrain(derecha, -255, 255);
 
@@ -86,15 +112,16 @@ void retroceder() {
 }
 
 void girarDerecha() {
-  moverMotores(VELOCIDAD, -VELOCIDAD);
+  moverMotores(VELOCIDAD_GIRO, -VELOCIDAD_GIRO);
 }
 
 void girarIzquierda() {
-  moverMotores(-VELOCIDAD, VELOCIDAD);
+  moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
-
+// ========================================
 // LEDS
+// ========================================
 
 void apagarLeds() {
   digitalWrite(pink_pin, LOW);
@@ -104,6 +131,7 @@ void apagarLeds() {
 }
 
 void probarLeds() {
+
   int leds[] = {
     pink_pin,
     orange_pin,
@@ -113,14 +141,17 @@ void probarLeds() {
 
   for (int i = 0; i < 4; i++) {
     digitalWrite(leds[i], HIGH);
-    delay(400);
+    delay(250);
     digitalWrite(leds[i], LOW);
   }
 }
 
+// ========================================
 // ULTRASONICO
+// ========================================
 
 void leerUltrasonico() {
+
   digitalWrite(TRIGGER_PIN, LOW);
   delayMicroseconds(2);
 
@@ -138,13 +169,21 @@ void leerUltrasonico() {
   }
 }
 
-// INFRARROJO
+// ========================================
+// INFRARROJO DERECHO
+// ========================================
+
 bool paredDerecha() {
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
-// SENSOR DE COLOR
+// ========================================
+// SENSOR RGB
+// MISMA DETECCION QUE YA FUNCIONABA
+// ========================================
+
 void leerColor() {
+
   if (!colorDisponible) {
     colorDetectado = "RGB NO DISPONIBLE";
     apagarLeds();
@@ -194,11 +233,11 @@ void leerColor() {
     digitalWrite(orange_pin, HIGH);
   }
 
-  // AZUL
+  // CELESTE
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
 
-    colorDetectado = "AZUL";
+    colorDetectado = "CELESTE";
     digitalWrite(blue_pin, HIGH);
   }
 
@@ -207,9 +246,12 @@ void leerColor() {
   }
 }
 
-// MOSTRAR LECTURAS
+// ========================================
+// MOSTRAR SENSORES
+// ========================================
 
 void mostrarSensores() {
+
   Serial.println("===== PISTA A =====");
 
   Serial.print("Distancia: ");
@@ -237,9 +279,124 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
+// ========================================
+// MOVIMIENTOS CALIBRABLES
+// ========================================
+
+void giro90Derecha() {
+
+  detener();
+  delay(150);
+
+  girarDerecha();
+  delay(TIEMPO_GIRO_90);
+
+  detener();
+  delay(150);
+}
+
+void giro90Izquierda() {
+
+  detener();
+  delay(150);
+
+  girarIzquierda();
+  delay(TIEMPO_GIRO_90);
+
+  detener();
+  delay(150);
+}
+
+void giro180() {
+
+  detener();
+  delay(150);
+
+  girarDerecha();
+  delay(TIEMPO_GIRO_90 * 2);
+
+  detener();
+  delay(150);
+}
+
+// ========================================
+// WALL FOLLOWER - MANO DERECHA
+// ========================================
+
+void resolverMaze() {
+
+  leerUltrasonico();
+  leerColor();
+  mostrarSensores();
+
+  // Si no hay lectura frontal confiable,
+  // detener para evitar choques.
+  if (distancia < 0) {
+    detener();
+    Serial.println("SIN ECO - DETENIDO");
+    delay(150);
+    return;
+  }
+
+  bool frenteLibre = distancia > DISTANCIA_PARED;
+  bool derechaLibre = !paredDerecha();
+
+  // PRIORIDAD 1: CAMINO LIBRE A LA DERECHA
+  if (derechaLibre) {
+
+    Serial.println("CAMINO A LA DERECHA");
+
+    detener();
+    delay(100);
+
+    giro90Derecha();
+
+    // Comprobar espacio tras girar
+    leerUltrasonico();
+
+    if (distancia > DISTANCIA_PARED) {
+      avanzar();
+      delay(TIEMPO_AVANCE_CORTO);
+    } else {
+      detener();
+    }
+  }
+
+  // PRIORIDAD 2: AVANZAR DE FRENTE
+  else if (frenteLibre) {
+
+    Serial.println("AVANZANDO");
+
+    avanzar();
+    delay(100);
+  }
+
+  // PRIORIDAD 3: GIRAR A LA IZQUIERDA
+  else {
+
+    Serial.println("PARED ENFRENTE Y DERECHA");
+
+    giro90Izquierda();
+
+    leerUltrasonico();
+
+    // Si tambien hay pared a la izquierda,
+    // girar otros 90 grados (media vuelta total)
+    if (distancia > 0 &&
+        distancia <= DISTANCIA_PARED) {
+
+      Serial.println("CALLEJON SIN SALIDA");
+      giro90Izquierda();
+    }
+  }
+}
+
+// ========================================
 // SETUP
+// ========================================
 
 void setup() {
+
   Serial.begin(9600);
 
   pinMode(PWMA, OUTPUT);
@@ -268,6 +425,7 @@ void setup() {
   probarLeds();
 
   Wire.begin();
+
   colorDisponible = tcs.begin();
 
   if (colorDisponible) {
@@ -276,23 +434,18 @@ void setup() {
     Serial.println("ERROR RGB");
   }
 
-  // HABILITAR DRIVER
   digitalWrite(STBY, HIGH);
 
-  Serial.println("INICIANDO MOVIMIENTO CONTINUO");
+  Serial.println("WALL FOLLOWER INICIADO");
+
   delay(2000);
 }
 
-// LOOP - MOVIMIENTO CONTINUO
+// ========================================
+// LOOP PRINCIPAL
+// ========================================
 
 void loop() {
-  leerUltrasonico();
-  leerColor();
-  mostrarSensores();
-
-  // Las ruedas siguen girando
-  avanzar();
-
-  delay(400);
+  resolverMaze();
 }
 
