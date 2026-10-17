@@ -5,10 +5,10 @@
 
 // ========================================
 // ROBOREGOS - PISTA A (MAZE)
-// 2 INFRARROJOS FRONTALES + ULTRASONICO
+// 2 IR FRONTALES + RETROCESO ANTE PARED
 // ========================================
 
-// -------- MOTORES --------
+// MOTORES
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -19,21 +19,21 @@ const int BIN2 = A3;
 
 const int STBY = 11;
 
-// -------- SENSORES --------
+// ULTRASONICO
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
 
-// DOS INFRARROJOS FRONTALES
+// INFRARROJOS: AMBOS MIRAN AL FRENTE
 const int IR_DERECHO = 7;
 const int IR_IZQUIERDO = 10;
 
-// -------- LEDS --------
+// LEDS
 const int pink_pin = 9;
 const int orange_pin = 8;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// -------- RGB --------
+// SENSOR RGB
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
@@ -46,21 +46,25 @@ Adafruit_TCS34725 tcs(
 const int VELOCIDAD = 220;
 const int VELOCIDAD_GIRO = 220;
 
+// Retroceso mas suave que el avance
+const int VELOCIDAD_RETROCESO = 150;
+
+// Ajustar despues de probar
+const unsigned long TIEMPO_RETROCESO = 250;
+
 // Distancias en centimetros
 const float DISTANCIA_PARED = 18.0;
 const float DISTANCIA_LIBRE = 28.0;
 
-// Giros pequeños
+// Giros de busqueda
 const unsigned long TIEMPO_GIRO_PASO = 80;
 const int MAX_PASOS_BUSQUEDA = 18;
 
-// Inversion de motores
+// Motores invertidos
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = true;
 
-// LOW significa pared detectada
-// Cambiar a HIGH si los sensores
-// funcionan al reves
+// IR detecta pared cuando marca LOW
 const int IR_PARED = LOW;
 
 // Intervalos
@@ -83,6 +87,9 @@ String colorDetectado = "SIN LECTURA";
 
 unsigned long ultimaLecturaRGB = 0;
 unsigned long ultimoSerial = 0;
+
+// Evita retrocesos repetidos sin avanzar
+bool retrocesoRealizado = false;
 
 // ========================================
 // CONTROL DE MOTORES
@@ -120,7 +127,7 @@ void avanzar() {
 }
 
 void retroceder() {
-  moverMotores(-VELOCIDAD, -VELOCIDAD);
+  moverMotores(-VELOCIDAD_RETROCESO, -VELOCIDAD_RETROCESO);
 }
 
 void girarDerecha() {
@@ -196,9 +203,31 @@ bool paredIzquierda() {
 }
 
 bool obstaculoFrontal() {
-
-  // Basta que uno detecte pared
   return paredDerecha() || paredIzquierda();
+}
+
+// ========================================
+// RETROCESO DE SEGURIDAD
+// ========================================
+
+void retrocederDePared() {
+
+  detener();
+  delay(100);
+
+  Serial.println("PARED DETECTADA - RETROCEDIENDO");
+
+  // Retroceso corto y controlado
+  // Solo si hay espacio libre detras
+  retroceder();
+  delay(TIEMPO_RETROCESO);
+
+  detener();
+  delay(150);
+
+  retrocesoRealizado = true;
+
+  Serial.println("RETROCESO TERMINADO");
 }
 
 // ========================================
@@ -354,9 +383,8 @@ bool buscarSalida() {
       return true;
     }
 
-    // Giro pequeño hacia la izquierda
+    // Girar en pasos pequeños
     girarIzquierda();
-
     delay(TIEMPO_GIRO_PASO);
 
     detener();
@@ -366,7 +394,6 @@ bool buscarSalida() {
   detener();
 
   Serial.println("NO SE ENCONTRO SALIDA");
-
   return false;
 }
 
@@ -381,22 +408,20 @@ void resolverMaze() {
   actualizarRGB();
   mostrarSensores();
 
-  // Sin lectura ultrasonica
+  bool irDerecho = paredDerecha();
+  bool irIzquierdo = paredIzquierda();
+
+  // Si el ultrasonico no responde
   if (distancia < 0) {
 
     detener();
-
     Serial.println("SIN ECO - DETENIDO");
-
     delay(100);
     return;
   }
 
-  bool irDerecho = paredDerecha();
-  bool irIzquierdo = paredIzquierda();
-
   // =====================================
-  // AVANZAR SI TODO ESTA LIBRE
+  // CAMINO LIBRE
   // =====================================
 
   if (distancia > DISTANCIA_PARED &&
@@ -404,31 +429,39 @@ void resolverMaze() {
       !irIzquierdo) {
 
     avanzar();
+
+    // Ya avanzo, puede retroceder
+    // nuevamente ante otro obstaculo
+    retrocesoRealizado = false;
+
     return;
   }
 
   // =====================================
-  // OBSTACULO DETECTADO
+  // PARED DETECTADA
   // =====================================
 
   detener();
 
   Serial.println("OBSTACULO DETECTADO");
 
+  // Si un infrarrojo detecta pared,
+  // retrocede antes de intentar girar.
+  // No repetir el retroceso si aun
+  // no ha podido avanzar.
+  if ((irDerecho || irIzquierdo) &&
+      !retrocesoRealizado) {
+
+    retrocederDePared();
+  }
+
+  // Buscar una salida
   bool salida = buscarSalida();
 
-  if (salida) {
+  if (salida && caminoLibre()) {
 
-    // Comprobacion final
-    if (caminoLibre()) {
-
-      Serial.println("AVANZANDO");
-      avanzar();
-
-    } else {
-
-      detener();
-    }
+    Serial.println("AVANZANDO");
+    avanzar();
 
   } else {
 
@@ -460,7 +493,7 @@ void setup() {
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
-  // DOS INFRARROJOS
+  // Infrarrojos
   pinMode(IR_DERECHO, INPUT);
   pinMode(IR_IZQUIERDO, INPUT);
 
@@ -489,7 +522,7 @@ void setup() {
   digitalWrite(STBY, HIGH);
 
   Serial.println("ROBOREGOS MAZE INICIADO");
-  Serial.println("2 INFRARROJOS FRONTALES ACTIVOS");
+  Serial.println("2 IR + RETROCESO ACTIVADOS");
 
   delay(2000);
 }
@@ -499,6 +532,6 @@ void setup() {
 // ========================================
 
 void loop() {
-
   resolverMaze();
 }
+
