@@ -31,9 +31,8 @@ Adafruit_TCS34725 tcs(
   TCS34725_GAIN_1X
 );
 
-// ========================================
+
 // CONFIGURACION
-// ========================================
 
 // Velocidad de avance
 const int VELOCIDAD = 130;
@@ -67,9 +66,8 @@ float azul = 0;
 
 String colorDetectado = "SIN LECTURA";
 
-// ========================================
+
 // CONTROL DE MOTORES
-// ========================================
 
 void moverMotores(int izquierda, int derecha) {
 
@@ -114,9 +112,7 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
-// ========================================
 // LEDS
-// ========================================
 
 void apagarLeds() {
   digitalWrite(pink_pin, LOW);
@@ -141,9 +137,8 @@ void probarLeds() {
   }
 }
 
-// ========================================
+
 // ULTRASONICO
-// ========================================
 
 void leerUltrasonico() {
 
@@ -164,18 +159,14 @@ void leerUltrasonico() {
   }
 }
 
-// ========================================
+
 // INFRARROJO DERECHO
-// ========================================
 
 bool paredDerecha() {
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
-// ========================================
 // SENSOR RGB
-// MISMA DETECCION QUE YA FUNCIONABA
-// ========================================
 
 void leerColor() {
 
@@ -199,15 +190,21 @@ void leerColor() {
   azul = (float)b / c;
 
   apagarLeds();
+  // ROJO - CHECKPOINT FINAL
+if (rojo > verde * 1.45 &&
+    rojo > azul * 1.45) {
 
-  // ROSA
-  if (rojo > verde * 1.20 &&
-      rojo > azul * 1.10 &&
-      azul > verde * 0.85) {
+  colorDetectado = "ROJO";
+}
 
-    colorDetectado = "ROSA";
-    digitalWrite(pink_pin, HIGH);
-  }
+// ROSA
+else if (rojo > verde * 1.20 &&
+         rojo > azul * 1.10 &&
+         azul > verde * 0.85) {
+
+  colorDetectado = "ROSA";
+  digitalWrite(pink_pin, HIGH);
+}
 
   // AMARILLO
   else if (rojo > azul * 1.35 &&
@@ -241,9 +238,7 @@ void leerColor() {
   }
 }
 
-// ========================================
 // MOSTRAR SENSORES
-// ========================================
 
 void mostrarSensores() {
 
@@ -274,9 +269,7 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
-// ========================================
 // MOVIMIENTOS CALIBRABLES
-// ========================================
 
 void giro90Derecha() {
 
@@ -314,9 +307,8 @@ void giro180() {
   delay(150);
 }
 
-// ========================================
+
 // WALL FOLLOWER - MANO DERECHA
-// ========================================
 
 void resolverMaze() {
 
@@ -386,9 +378,8 @@ void resolverMaze() {
   }
 }
 
-// ========================================
+
 // SETUP
-// ========================================
 
 void setup() {
 
@@ -435,13 +426,10 @@ void setup() {
 
   delay(2000);
 }
-
-// ========================================
 // LOOP PRINCIPAL
-// ========================================
-
 void loop() {
   resolverMaze();
 }
+
 
 
