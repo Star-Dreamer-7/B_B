@@ -53,7 +53,7 @@ Adafruit_TCS34725 tcs(
 // ======================================
 
 // Velocidades actualizadas
-const int VELOCIDAD = 190;
+const int VELOCIDAD = 200;
 const int VELOCIDAD_GIRO = 220;
 
 // Distancias
