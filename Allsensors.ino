@@ -3,12 +3,6 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ======================================
-// ROBOREGOS - PISTA A (MAZE)
-// ======================================
-
-// -------- DRIVER TB6612FNG --------
-
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -20,29 +14,24 @@ const int BIN2 = A3;
 const int STBY = 11;
 
 // -------- SENSORES --------
-
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
 const int IR_PIN = 7;
 
 // -------- LEDS --------
-
 const int pink_pin = 9;
 const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
 // -------- SENSOR RGB --------
-
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
-// ======================================
-// CONFIGURACION
-// ======================================
 
+// CONFIGURACION
 const int VELOCIDAD = 220;
 const int VELOCIDAD_GIRO = 220;
 
@@ -67,10 +56,7 @@ const int IR_PARED = LOW;
 const unsigned long INTERVALO_RGB = 250;
 const unsigned long INTERVALO_SERIAL = 400;
 
-// ======================================
 // VARIABLES
-// ======================================
-
 float distancia = -1;
 
 float rojo = 0;
@@ -84,10 +70,8 @@ String colorDetectado = "SIN LECTURA";
 unsigned long ultimaLecturaRGB = 0;
 unsigned long ultimoSerial = 0;
 
-// ======================================
-// CONTROL DE MOTORES
-// ======================================
 
+// CONTROL DE MOTORES
 void moverMotores(int izquierda, int derecha) {
 
   izquierda = constrain(izquierda, -255, 255);
@@ -131,10 +115,7 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
-// ======================================
 // LEDS
-// ======================================
-
 void apagarLeds() {
 
   digitalWrite(pink_pin, LOW);
@@ -160,10 +141,8 @@ void probarLeds() {
   }
 }
 
-// ======================================
-// SENSOR ULTRASONICO
-// ======================================
 
+// SENSOR ULTRASONICO
 void leerUltrasonico() {
 
   digitalWrite(TRIGGER_PIN, LOW);
@@ -184,18 +163,12 @@ void leerUltrasonico() {
   }
 }
 
-// ======================================
 // SENSOR INFRARROJO
-// ======================================
-
 bool paredDerecha() {
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
-// ======================================
 // SENSOR DE COLOR RGB
-// ======================================
-
 void leerColor() {
 
   if (!colorDisponible) {
@@ -261,9 +234,8 @@ void leerColor() {
   }
 }
 
-// ======================================
+
 // ACTUALIZAR RGB
-// ======================================
 
 void actualizarRGB() {
 
@@ -274,9 +246,7 @@ void actualizarRGB() {
   }
 }
 
-// ======================================
 // MONITOR SERIAL
-// ======================================
 
 void mostrarSensores() {
 
@@ -306,10 +276,7 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
-// ======================================
 // BUSCAR CAMINO LIBRE
-// ======================================
-
 bool buscarSalida() {
 
   detener();
@@ -320,7 +287,6 @@ bool buscarSalida() {
 
     leerUltrasonico();
 
-    // Si encontramos suficiente espacio,
     // dejamos de girar.
     if (distancia >= DISTANCIA_LIBRE) {
 
@@ -348,10 +314,7 @@ bool buscarSalida() {
   return false;
 }
 
-// ======================================
 // RESOLVER MAZE
-// ======================================
-
 void resolverMaze() {
 
   // Leer distancia frontal
@@ -374,9 +337,8 @@ void resolverMaze() {
     return;
   }
 
-  // ==================================
   // PRIORIDAD 1: AVANZAR
-  // ==================================
+
 
   if (distancia > DISTANCIA_PARED) {
 
@@ -384,10 +346,8 @@ void resolverMaze() {
 
     return;
   }
-
-  // ==================================
+  
   // PRIORIDAD 2: EVITAR PARED
-  // ==================================
 
   detener();
 
@@ -418,10 +378,7 @@ void resolverMaze() {
   }
 }
 
-// ======================================
 // SETUP
-// ======================================
-
 void setup() {
 
   Serial.begin(9600);
