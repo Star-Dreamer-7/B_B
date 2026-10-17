@@ -1,9 +1,12 @@
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-
+// ======================================
 // MOTORES - TB6612FNG
+// ======================================
+
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -14,49 +17,58 @@ const int BIN2 = A3;
 
 const int STBY = 11;
 
+// ======================================
 // SENSORES
+// ======================================
+
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
 const int IR_PIN = 7;
 
+// ======================================
 // LEDS
+// ======================================
+
 const int pink_pin = 9;
 const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
+// ======================================
 // SENSOR RGB
+// ======================================
+
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
-
+// ======================================
 // CONFIGURACION
+// ======================================
 
-// Velocidad de avance
 const int VELOCIDAD = 130;
-
-// Velocidad de giro
 const int VELOCIDAD_GIRO = 160;
 
-// Distancia minima antes de una pared
-const float DISTANCIA_PARED = 15.0;
+// CAMBIO: antes era 15 cm
+const float DISTANCIA_PARED = 25.0;
 
-// IR: cambiar a HIGH si tu sensor detecta
-// paredes con valor 1
 const int IR_PARED = LOW;
 
-// Corregir movimiento hacia atras
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = false;
 
-// AJUSTAR SEGUN TU ROBOT
-// Tiempos aproximados, NO calibrados
+// Tiempos aproximados
 const unsigned long TIEMPO_GIRO_90 = 450;
 const unsigned long TIEMPO_AVANCE_CORTO = 250;
 
+// CAMBIO: lectura frontal mas frecuente
+const unsigned long TIEMPO_AVANCE_FRENTE = 50;
+
+// ======================================
 // VARIABLES
+// ======================================
+
 bool colorDisponible = false;
 
 float distancia = -1;
@@ -66,8 +78,9 @@ float azul = 0;
 
 String colorDetectado = "SIN LECTURA";
 
-
+// ======================================
 // CONTROL DE MOTORES
+// ======================================
 
 void moverMotores(int izquierda, int derecha) {
 
@@ -112,7 +125,9 @@ void girarIzquierda() {
   moverMotores(-VELOCIDAD_GIRO, VELOCIDAD_GIRO);
 }
 
+// ======================================
 // LEDS
+// ======================================
 
 void apagarLeds() {
   digitalWrite(pink_pin, LOW);
@@ -137,8 +152,9 @@ void probarLeds() {
   }
 }
 
-
+// ======================================
 // ULTRASONICO
+// ======================================
 
 void leerUltrasonico() {
 
@@ -159,14 +175,17 @@ void leerUltrasonico() {
   }
 }
 
-
+// ======================================
 // INFRARROJO DERECHO
+// ======================================
 
 bool paredDerecha() {
   return digitalRead(IR_PIN) == IR_PARED;
 }
 
+// ======================================
 // SENSOR RGB
+// ======================================
 
 void leerColor() {
 
@@ -190,21 +209,15 @@ void leerColor() {
   azul = (float)b / c;
 
   apagarLeds();
-  // ROJO - CHECKPOINT FINAL
-if (rojo > verde * 1.45 &&
-    rojo > azul * 1.45) {
 
-  colorDetectado = "ROJO";
-}
+  // ROSA
+  if (rojo > verde * 1.20 &&
+      rojo > azul * 1.10 &&
+      azul > verde * 0.85) {
 
-// ROSA
-else if (rojo > verde * 1.20 &&
-         rojo > azul * 1.10 &&
-         azul > verde * 0.85) {
-
-  colorDetectado = "ROSA";
-  digitalWrite(pink_pin, HIGH);
-}
+    colorDetectado = "ROSA";
+    digitalWrite(pink_pin, HIGH);
+  }
 
   // AMARILLO
   else if (rojo > azul * 1.35 &&
@@ -238,7 +251,9 @@ else if (rojo > verde * 1.20 &&
   }
 }
 
+// ======================================
 // MOSTRAR SENSORES
+// ======================================
 
 void mostrarSensores() {
 
@@ -269,7 +284,9 @@ void mostrarSensores() {
   Serial.println("===================");
 }
 
+// ======================================
 // MOVIMIENTOS CALIBRABLES
+// ======================================
 
 void giro90Derecha() {
 
@@ -307,8 +324,9 @@ void giro180() {
   delay(150);
 }
 
-
+// ======================================
 // WALL FOLLOWER - MANO DERECHA
+// ======================================
 
 void resolverMaze() {
 
@@ -317,10 +335,13 @@ void resolverMaze() {
   mostrarSensores();
 
   // Si no hay lectura frontal confiable,
-  // detener para evitar choques.
+  // detener por seguridad.
   if (distancia < 0) {
+
     detener();
+
     Serial.println("SIN ECO - DETENIDO");
+
     delay(150);
     return;
   }
@@ -328,7 +349,14 @@ void resolverMaze() {
   bool frenteLibre = distancia > DISTANCIA_PARED;
   bool derechaLibre = !paredDerecha();
 
-  // PRIORIDAD 1: CAMINO LIBRE A LA DERECHA
+  // Si hay pared cerca, detener primero
+  if (!frenteLibre) {
+    detener();
+    Serial.println("PARED FRONTAL DETECTADA");
+    delay(100);
+  }
+
+  // PRIORIDAD 1: DERECHA LIBRE
   if (derechaLibre) {
 
     Serial.println("CAMINO A LA DERECHA");
@@ -338,27 +366,34 @@ void resolverMaze() {
 
     giro90Derecha();
 
-    // Comprobar espacio tras girar
     leerUltrasonico();
 
     if (distancia > DISTANCIA_PARED) {
+
       avanzar();
       delay(TIEMPO_AVANCE_CORTO);
-    } else {
+
       detener();
+
+    } else {
+
+      detener();
+      Serial.println("PARED DESPUES DEL GIRO");
     }
   }
 
-  // PRIORIDAD 2: AVANZAR DE FRENTE
+  // PRIORIDAD 2: FRENTE LIBRE
   else if (frenteLibre) {
 
     Serial.println("AVANZANDO");
 
     avanzar();
-    delay(100);
+
+    // CAMBIO: antes era 100 ms
+    delay(TIEMPO_AVANCE_FRENTE);
   }
 
-  // PRIORIDAD 3: GIRAR A LA IZQUIERDA
+  // PRIORIDAD 3: IZQUIERDA
   else {
 
     Serial.println("PARED ENFRENTE Y DERECHA");
@@ -367,19 +402,21 @@ void resolverMaze() {
 
     leerUltrasonico();
 
-    // Si tambien hay pared a la izquierda,
-    // girar otros 90 grados (media vuelta total)
     if (distancia > 0 &&
         distancia <= DISTANCIA_PARED) {
 
       Serial.println("CALLEJON SIN SALIDA");
+
       giro90Izquierda();
     }
+
+    detener();
   }
 }
 
-
+// ======================================
 // SETUP
+// ======================================
 
 void setup() {
 
@@ -426,10 +463,11 @@ void setup() {
 
   delay(2000);
 }
+
+// ======================================
 // LOOP PRINCIPAL
+// ======================================
+
 void loop() {
   resolverMaze();
 }
-
-
-
