@@ -3,15 +3,26 @@
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
 
-// ======================================
-// CANDIDATES ROBOREGOS
-// ULTRASONICO + RGB + LEDS
-// ======================================
+// ========================================
+// ROBOREGOS CANDIDATES 2026
+// PISTA A - INTEGRACION Y PRUEBA
+// ========================================
 
-// ULTRASONICO
+// MOTORES - TB6612FNG
+const int PWMA = 5;
+const int AIN1 = A0;
+const int AIN2 = A1;
+
+const int PWMB = 6;
+const int BIN1 = A2;
+const int BIN2 = A3;
+
+const int STBY = 11;
+
+// SENSORES
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
-const float DISTANCIA_PARED = 15.0;
+const int IR_PIN = 7;
 
 // LEDS
 const int pink_pin = 9;
@@ -19,25 +30,81 @@ const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
-// SENSOR RGB
+// RGB
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
 );
 
+// CONFIGURACION
+const int VELOCIDAD = 110;
+const float DISTANCIA_PARED = 15.0;
+const int IR_PARED = LOW;
+
+// Cambiar si alguna rueda gira al reves
+const bool INVERTIR_IZQUIERDO = false;
+const bool INVERTIR_DERECHO = false;
+
 // VARIABLES
 bool colorDisponible = false;
+float distancia = -1;
 
-float distancia = -1.0;
-float rojo = 0.0;
-float verde = 0.0;
-float azul = 0.0;
+float rojo = 0;
+float verde = 0;
+float azul = 0;
 
 String colorDetectado = "SIN LECTURA";
 
-// ======================================
-// APAGAR LEDS
-// ======================================
+// ========================================
+// CONTROL DE MOTORES
+// ========================================
+
+void moverMotores(int izquierda, int derecha) {
+  izquierda = constrain(izquierda, -255, 255);
+  derecha = constrain(derecha, -255, 255);
+
+  if (INVERTIR_IZQUIERDO) {
+    izquierda = -izquierda;
+  }
+
+  if (INVERTIR_DERECHO) {
+    derecha = -derecha;
+  }
+
+  digitalWrite(AIN1, izquierda > 0 ? HIGH : LOW);
+  digitalWrite(AIN2, izquierda < 0 ? HIGH : LOW);
+
+  digitalWrite(BIN1, derecha > 0 ? HIGH : LOW);
+  digitalWrite(BIN2, derecha < 0 ? HIGH : LOW);
+
+  analogWrite(PWMA, abs(izquierda));
+  analogWrite(PWMB, abs(derecha));
+}
+
+void detener() {
+  moverMotores(0, 0);
+}
+
+void avanzar() {
+  moverMotores(VELOCIDAD, VELOCIDAD);
+}
+
+void retroceder() {
+  moverMotores(-VELOCIDAD, -VELOCIDAD);
+}
+
+void girarDerecha() {
+  moverMotores(VELOCIDAD, -VELOCIDAD);
+}
+
+void girarIzquierda() {
+  moverMotores(-VELOCIDAD, VELOCIDAD);
+}
+
+// ========================================
+// LEDS
+// ========================================
+
 void apagarLeds() {
   digitalWrite(pink_pin, LOW);
   digitalWrite(orange_pin, LOW);
@@ -45,34 +112,25 @@ void apagarLeds() {
   digitalWrite(blue_pin, LOW);
 }
 
-// ======================================
-// PRUEBA DE LEDS
-// ======================================
 void probarLeds() {
-  Serial.println("Probando LED ROSA");
-  digitalWrite(pink_pin, HIGH);
-  delay(700);
-  digitalWrite(pink_pin, LOW);
+  int leds[] = {
+    pink_pin,
+    orange_pin,
+    yellow_pin,
+    blue_pin
+  };
 
-  Serial.println("Probando LED NARANJA");
-  digitalWrite(orange_pin, HIGH);
-  delay(700);
-  digitalWrite(orange_pin, LOW);
-
-  Serial.println("Probando LED AMARILLO");
-  digitalWrite(yellow_pin, HIGH);
-  delay(700);
-  digitalWrite(yellow_pin, LOW);
-
-  Serial.println("Probando LED CELESTE");
-  digitalWrite(blue_pin, HIGH);
-  delay(700);
-  digitalWrite(blue_pin, LOW);
+  for (int i = 0; i < 4; i++) {
+    digitalWrite(leds[i], HIGH);
+    delay(400);
+    digitalWrite(leds[i], LOW);
+  }
 }
 
-// ======================================
-// LEER ULTRASONICO
-// ======================================
+// ========================================
+// ULTRASONICO
+// ========================================
+
 void leerUltrasonico() {
   digitalWrite(TRIGGER_PIN, LOW);
   delayMicroseconds(2);
@@ -85,19 +143,27 @@ void leerUltrasonico() {
     pulseIn(ECHO_PIN, HIGH, 30000UL);
 
   if (tiempo == 0) {
-    distancia = -1.0;
+    distancia = -1;
   } else {
     distancia = tiempo * 0.0343 / 2.0;
   }
 }
 
-// ======================================
-// LEER SENSOR RGB
-// ======================================
-void leerColor() {
+// ========================================
+// INFRARROJO
+// ========================================
 
+bool paredDerecha() {
+  return digitalRead(IR_PIN) == IR_PARED;
+}
+
+// ========================================
+// SENSOR DE COLOR
+// ========================================
+
+void leerColor() {
   if (!colorDisponible) {
-    colorDetectado = "SENSOR NO DISPONIBLE";
+    colorDetectado = "RGB NO DISPONIBLE";
     apagarLeds();
     return;
   }
@@ -158,12 +224,12 @@ void leerColor() {
   }
 }
 
-// ======================================
-// MOSTRAR SENSORES
-// ======================================
-void mostrarSensores() {
+// ========================================
+// MOSTRAR LECTURAS
+// ========================================
 
-  Serial.println("===== SENSORES =====");
+void mostrarSensores() {
+  Serial.println("===== PISTA A =====");
 
   Serial.print("Distancia: ");
 
@@ -174,17 +240,10 @@ void mostrarSensores() {
     Serial.println(" cm");
   }
 
-  Serial.print("Pared enfrente: ");
+  Serial.print("Pared derecha: ");
+  Serial.println(paredDerecha() ? "SI" : "NO");
 
-  if (distancia < 0) {
-    Serial.println("DESCONOCIDO");
-  } else if (distancia < DISTANCIA_PARED) {
-    Serial.println("SI");
-  } else {
-    Serial.println("NO");
-  }
-
-  Serial.print("Color detectado: ");
+  Serial.print("Color: ");
   Serial.println(colorDetectado);
 
   Serial.print("RGB: ");
@@ -194,17 +253,54 @@ void mostrarSensores() {
   Serial.print(" | ");
   Serial.println(azul, 3);
 
-  Serial.println("====================");
+  Serial.println("===================");
 }
 
-// ======================================
+// ========================================
+// PRUEBA DE MOVIMIENTO
+// ========================================
+
+void pruebaMovimiento() {
+  Serial.println("AVANZAR");
+  avanzar();
+  delay(300);
+  detener();
+  delay(800);
+
+  Serial.println("DERECHA");
+  girarDerecha();
+  delay(250);
+  detener();
+  delay(800);
+
+  Serial.println("IZQUIERDA");
+  girarIzquierda();
+  delay(250);
+  detener();
+
+  Serial.println("PRUEBA TERMINADA");
+}
+
+// ========================================
 // SETUP
-// ======================================
+// ========================================
+
 void setup() {
   Serial.begin(9600);
 
+  pinMode(PWMA, OUTPUT);
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+
+  pinMode(PWMB, OUTPUT);
+  pinMode(BIN1, OUTPUT);
+  pinMode(BIN2, OUTPUT);
+
+  pinMode(STBY, OUTPUT);
+
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
+  pinMode(IR_PIN, INPUT);
 
   pinMode(pink_pin, OUTPUT);
   pinMode(orange_pin, OUTPUT);
@@ -212,31 +308,47 @@ void setup() {
   pinMode(blue_pin, OUTPUT);
 
   digitalWrite(TRIGGER_PIN, LOW);
-  apagarLeds();
+  digitalWrite(STBY, LOW);
 
-  // Probar los cuatro LEDs
+  detener();
   probarLeds();
 
   Wire.begin();
-
   colorDisponible = tcs.begin();
 
   if (colorDisponible) {
-    Serial.println("Sensor RGB listo");
+    Serial.println("RGB LISTO");
   } else {
-    Serial.println("ERROR: RGB no encontrado");
+    Serial.println("ERROR RGB");
   }
 
-  Serial.println("Sistema inicializado");
+  Serial.println("INICIANDO PRUEBA");
+
+  // HABILITAR MOTORES
+  digitalWrite(STBY, HIGH);
+
+  delay(2000);
 }
 
-// ======================================
-// LOOP PRINCIPAL
-// ======================================
+// ========================================
+// LOOP
+// ========================================
+
 void loop() {
+  static bool pruebaTerminada = false;
+
   leerUltrasonico();
   leerColor();
   mostrarSensores();
 
+  if (!pruebaTerminada) {
+    pruebaTerminada = true;
+
+    // Ejecutar solo una vez
+    // con las ruedas levantadas
+    pruebaMovimiento();
+  }
+
+  detener();
   delay(400);
 }
