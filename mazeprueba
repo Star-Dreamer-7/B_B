@@ -1,11 +1,13 @@
-
+```cpp
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_TCS34725.h>
+#include <math.h>
 
 // ========================================
 // ROBOREGOS - PISTA B
 // BUSQUEDA RAPIDA + MEMORIA APROXIMADA
+// IR EN EL LADO IZQUIERDO
 // ========================================
 
 // ---------- MOTORES TB6612FNG ----------
@@ -24,7 +26,13 @@ const int STBY = 11;
 
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
-const int IR_PIN = 7;
+
+// Sensor infrarrojo izquierdo
+const int IR_IZQUIERDO = 7;
+
+// Muchos modulos IR digitales entregan LOW al detectar.
+// Verifica este comportamiento con tu sensor.
+const int IR_PARED = LOW;
 
 // ---------- LEDS ----------
 
@@ -46,28 +54,21 @@ Adafruit_TCS34725 tcs(
 
 const int VELOCIDAD = 210;
 const int VELOCIDAD_GIRO = 220;
+const int VELOCIDAD_RETROCESO = 160;
 
-// NO CAMBIAR: ambos motores ya calibrados
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = true;
 
-// 30 cm aproximadamente
+// Ajusta estos tiempos segun las pruebas fisicas.
 const unsigned long TIEMPO_CASILLA = 4000;
-
-// Giro de 90 grados calibrado
 const unsigned long TIEMPO_GIRO_90 = 2000;
-
-// Giro de 30 grados estimado
 const unsigned long TIEMPO_GIRO_30 = 667;
+const unsigned long TIEMPO_RETROCESO = 300;
 
-// Distancias en centimetros
 const float DISTANCIA_PARED = 15.0;
 const float DISTANCIA_LIBRE = 20.0;
-
-// Para aceptar una abertura en un escaneo
 const float DISTANCIA_ABERTURA = 25.0;
 
-// Intervalos
 const unsigned long INTERVALO_ULTRASONICO = 60;
 const unsigned long INTERVALO_RGB = 500;
 
@@ -79,16 +80,10 @@ const int MAPA_SIZE = 15;
 
 byte visitadas[MAPA_SIZE][MAPA_SIZE];
 
-// Posicion inicial
 int posX = MAPA_SIZE / 2;
 int posY = MAPA_SIZE / 2;
 
-// Orientacion:
-// 0 = NORTE
-// 1 = ESTE
-// 2 = SUR
-// 3 = OESTE
-
+// 0 = NORTE, 1 = ESTE, 2 = SUR, 3 = OESTE
 int orientacion = 0;
 
 const int dx[4] = {0, 1, 0, -1};
@@ -113,17 +108,11 @@ unsigned long ultimaLecturaRGB = 0;
 // ========================================
 
 void moverMotores(int izquierda, int derecha) {
-
   izquierda = constrain(izquierda, -255, 255);
   derecha = constrain(derecha, -255, 255);
 
-  if (INVERTIR_IZQUIERDO) {
-    izquierda = -izquierda;
-  }
-
-  if (INVERTIR_DERECHO) {
-    derecha = -derecha;
-  }
+  if (INVERTIR_IZQUIERDO) izquierda = -izquierda;
+  if (INVERTIR_DERECHO) derecha = -derecha;
 
   digitalWrite(AIN1, izquierda > 0 ? HIGH : LOW);
   digitalWrite(AIN2, izquierda < 0 ? HIGH : LOW);
@@ -144,7 +133,7 @@ void avanzar() {
 }
 
 void retroceder() {
-  moverMotores(-VELOCIDAD, -VELOCIDAD);
+  moverMotores(-VELOCIDAD_RETROCESO, -VELOCIDAD_RETROCESO);
 }
 
 void girarDerecha() {
@@ -156,11 +145,10 @@ void girarIzquierda() {
 }
 
 // ========================================
-// ULTRASONICO
+// SENSORES
 // ========================================
 
 void leerUltrasonico() {
-
   digitalWrite(TRIGGER_PIN, LOW);
   delayMicroseconds(2);
 
@@ -168,8 +156,7 @@ void leerUltrasonico() {
   delayMicroseconds(10);
   digitalWrite(TRIGGER_PIN, LOW);
 
-  unsigned long tiempo =
-    pulseIn(ECHO_PIN, HIGH, 25000UL);
+  unsigned long tiempo = pulseIn(ECHO_PIN, HIGH, 25000UL);
 
   if (tiempo == 0) {
     distancia = -1;
@@ -178,19 +165,22 @@ void leerUltrasonico() {
   }
 }
 
-bool espacioLibre(float minimo) {
+bool paredIzquierda() {
+  return digitalRead(IR_IZQUIERDO) == IR_PARED;
+}
 
+bool espacioLibre(float minimo) {
   leerUltrasonico();
 
+  // Una lectura invalida NO significa que el camino este libre.
   return distancia >= minimo;
 }
 
 // ========================================
-// RGB Y LEDS
+// LEDS Y SENSOR RGB
 // ========================================
 
 void apagarLeds() {
-
   digitalWrite(pink_pin, LOW);
   digitalWrite(orange_pin, LOW);
   digitalWrite(yellow_pin, LOW);
@@ -198,14 +188,12 @@ void apagarLeds() {
 }
 
 void leerColor() {
-
   if (!colorDisponible) {
     apagarLeds();
     return;
   }
 
   uint16_t r, g, b, c;
-
   tcs.getRawData(&r, &g, &b, &c);
 
   if (c == 0) {
@@ -223,7 +211,6 @@ void leerColor() {
   if (rojo > verde * 1.20 &&
       rojo > azul * 1.10 &&
       azul > verde * 0.85) {
-
     digitalWrite(pink_pin, HIGH);
   }
 
@@ -232,7 +219,6 @@ void leerColor() {
            verde > azul * 1.35 &&
            fabs(rojo - verde) < 0.20 &&
            verde > 0.20) {
-
     digitalWrite(yellow_pin, HIGH);
   }
 
@@ -240,23 +226,18 @@ void leerColor() {
   else if (rojo > verde * 1.30 &&
            verde > azul * 1.15 &&
            verde > 0.15) {
-
     digitalWrite(orange_pin, HIGH);
   }
 
   // CELESTE
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
-
     digitalWrite(blue_pin, HIGH);
   }
 }
 
 void actualizarRGB() {
-
-  if (millis() - ultimaLecturaRGB >=
-      INTERVALO_RGB) {
-
+  if (millis() - ultimaLecturaRGB >= INTERVALO_RGB) {
     ultimaLecturaRGB = millis();
     leerColor();
   }
@@ -267,15 +248,11 @@ void actualizarRGB() {
 // ========================================
 
 bool posicionValida(int x, int y) {
-
-  return x >= 0 &&
-         x < MAPA_SIZE &&
-         y >= 0 &&
-         y < MAPA_SIZE;
+  return x >= 0 && x < MAPA_SIZE &&
+         y >= 0 && y < MAPA_SIZE;
 }
 
 byte vecesVisitada(int direccion) {
-
   int nx = posX + dx[direccion];
   int ny = posY + dy[direccion];
 
@@ -287,10 +264,7 @@ byte vecesVisitada(int direccion) {
 }
 
 void registrarCasilla() {
-
-  if (!posicionValida(posX, posY)) {
-    return;
-  }
+  if (!posicionValida(posX, posY)) return;
 
   if (visitadas[posY][posX] < 254) {
     visitadas[posY][posX]++;
@@ -303,16 +277,15 @@ void registrarCasilla() {
 }
 
 void actualizarPosicion() {
-
   int nx = posX + dx[orientacion];
   int ny = posY + dy[orientacion];
 
   if (posicionValida(nx, ny)) {
-
     posX = nx;
     posY = ny;
-
     registrarCasilla();
+  } else {
+    Serial.println("LIMITE DEL MAPA");
   }
 }
 
@@ -320,27 +293,21 @@ void actualizarPosicion() {
 // GIROS
 // ========================================
 
-// Giro pequeno SIN actualizar orientacion.
-// Solo se usa durante el escaneo.
-
 void girarPasoDerecha() {
-
   girarDerecha();
   delay(TIEMPO_GIRO_30);
   detener();
+  delay(100);
 }
 
 void girarPasoIzquierda() {
-
   girarIzquierda();
   delay(TIEMPO_GIRO_30);
   detener();
+  delay(100);
 }
 
-// Giro completo de 90 grados
-
 void girar90Derecha() {
-
   girarDerecha();
   delay(TIEMPO_GIRO_90);
   detener();
@@ -349,7 +316,6 @@ void girar90Derecha() {
 }
 
 void girar90Izquierda() {
-
   girarIzquierda();
   delay(TIEMPO_GIRO_90);
   detener();
@@ -358,9 +324,32 @@ void girar90Izquierda() {
 }
 
 void girar180() {
+  girar90Derecha();
+  girar90Derecha();
+}
+
+// ========================================
+// RETROCEDER Y GIRAR
+// ========================================
+
+void retrocederYGirarDerecha() {
+  detener();
+  retroceder();
+  delay(TIEMPO_RETROCESO);
+  detener();
+  delay(100);
 
   girar90Derecha();
-  girar90Derecha();
+}
+
+void retrocederYGirarIzquierda() {
+  detener();
+  retroceder();
+  delay(TIEMPO_RETROCESO);
+  detener();
+  delay(100);
+
+  girar90Izquierda();
 }
 
 // ========================================
@@ -368,70 +357,55 @@ void girar180() {
 // ========================================
 
 bool avanzarCasilla() {
-
   unsigned long inicio = millis();
   unsigned long ultimaRevision = 0;
 
   avanzar();
 
   while (millis() - inicio < TIEMPO_CASILLA) {
-
     unsigned long ahora = millis();
 
-    if (ahora - ultimaRevision >=
-        INTERVALO_ULTRASONICO) {
+    actualizarRGB();
 
+    // El IR izquierdo puede detectar una pared lateral.
+    // Se detiene y se deja que la navegacion decida el giro.
+    if (paredIzquierda()) {
+      detener();
+      Serial.println("PARED IR IZQUIERDA");
+      return false;
+    }
+
+    if (ahora - ultimaRevision >= INTERVALO_ULTRASONICO) {
       ultimaRevision = ahora;
       leerUltrasonico();
 
-      if (distancia < 0 ||
-          distancia <= DISTANCIA_PARED) {
-
+      if (distancia < 0 || distancia <= DISTANCIA_PARED) {
         detener();
-
-        Serial.println("OBSTACULO O ERROR");
-
+        Serial.println("OBSTACULO FRONTAL O ERROR ULTRASONICO");
         return false;
       }
     }
-
-    actualizarRGB();
   }
 
   detener();
-
   actualizarPosicion();
 
   return true;
 }
 
 // ========================================
-// ESCANEO RAPIDO
+// ESCANEO DE ABERTURAS
 // ========================================
 
-// Busca una abertura girando en pasos de
-// aproximadamente 30 grados.
-//
-// Si encuentra una abertura antes de 90°,
-// termina de girar hasta 90° y confirma.
-//
-// Si no encuentra salida, regresa a la
-// orientacion original.
-
 bool escanearDerecha() {
-
   Serial.println("BUSCANDO DERECHA");
 
   int pasos = 0;
   bool aberturaDetectada = false;
 
-  // Hasta 90 grados hacia la derecha
   for (int i = 0; i < 3; i++) {
-
     girarPasoDerecha();
     pasos++;
-
-    delay(100);
 
     if (espacioLibre(DISTANCIA_ABERTURA)) {
       aberturaDetectada = true;
@@ -440,26 +414,18 @@ bool escanearDerecha() {
   }
 
   if (aberturaDetectada) {
-
-    // Completar los 90 grados
     while (pasos < 3) {
       girarPasoDerecha();
       pasos++;
     }
 
-    delay(100);
-
-    // Confirmar frente alineado
     if (espacioLibre(DISTANCIA_ABERTURA)) {
-
       orientacion = (orientacion + 1) % 4;
-
       Serial.println("SALIDA DERECHA");
       return true;
     }
   }
 
-  // Regresar exactamente los pasos girados
   for (int i = 0; i < pasos; i++) {
     girarPasoIzquierda();
   }
@@ -469,19 +435,14 @@ bool escanearDerecha() {
 }
 
 bool escanearIzquierda() {
-
   Serial.println("BUSCANDO IZQUIERDA");
 
   int pasos = 0;
   bool aberturaDetectada = false;
 
-  // Hasta 90 grados hacia la izquierda
   for (int i = 0; i < 3; i++) {
-
     girarPasoIzquierda();
     pasos++;
-
-    delay(100);
 
     if (espacioLibre(DISTANCIA_ABERTURA)) {
       aberturaDetectada = true;
@@ -490,25 +451,18 @@ bool escanearIzquierda() {
   }
 
   if (aberturaDetectada) {
-
-    // Completar los 90 grados
     while (pasos < 3) {
       girarPasoIzquierda();
       pasos++;
     }
 
-    delay(100);
-
     if (espacioLibre(DISTANCIA_ABERTURA)) {
-
       orientacion = (orientacion + 3) % 4;
-
       Serial.println("SALIDA IZQUIERDA");
       return true;
     }
   }
 
-  // Regresar a la orientacion inicial
   for (int i = 0; i < pasos; i++) {
     girarPasoDerecha();
   }
@@ -518,38 +472,34 @@ bool escanearIzquierda() {
 }
 
 // ========================================
-// ELEGIR SALIDA
+// BUSCAR SALIDA
 // ========================================
 
 bool buscarSalidaRapida() {
-
   detener();
 
-  // Primero buscar a la derecha
-  if (escanearDerecha()) {
-    return true;
+  // Si el IR izquierdo detecta pared,
+  // priorizar buscar hacia la derecha.
+  if (paredIzquierda()) {
+    Serial.println("IR IZQUIERDO: PARED");
+    if (escanearDerecha()) return true;
+    if (escanearIzquierda()) return true;
+  } else {
+    if (escanearDerecha()) return true;
+    if (escanearIzquierda()) return true;
   }
 
-  // Si no encuentra, buscar izquierda
-  if (escanearIzquierda()) {
-    return true;
-  }
-
-  // Si ambos lados estan bloqueados,
-  // intentar regresar
   Serial.println("BUSCANDO ATRAS");
 
   girar180();
 
   if (espacioLibre(DISTANCIA_LIBRE)) {
-
-    Serial.println("RETROCEDIENDO POR OTRA RUTA");
+    Serial.println("CAMINO HACIA ATRAS DETECTADO");
     return true;
   }
 
-  Serial.println("SIN SALIDA SEGURA");
+  Serial.println("SIN SALIDA CONFIRMADA");
   detener();
-
   return false;
 }
 
@@ -558,43 +508,49 @@ bool buscarSalidaRapida() {
 // ========================================
 
 void explorarPistaB() {
-
   actualizarRGB();
+
+  // Si el sensor izquierdo detecta una pared,
+  // buscar primero una salida a la derecha.
+  if (paredIzquierda()) {
+    detener();
+    Serial.println("PARED IZQUIERDA DETECTADA");
+
+    if (escanearDerecha()) {
+      avanzarCasilla();
+    } else if (escanearIzquierda()) {
+      avanzarCasilla();
+    } else {
+      Serial.println("NO SE DETECTO ABERTURA");
+      detener();
+      delay(300);
+    }
+
+    return;
+  }
 
   leerUltrasonico();
 
-  // Si no hay lectura, detener
   if (distancia < 0) {
-
     detener();
+    Serial.println("SIN LECTURA ULTRASONICA");
     delay(100);
     return;
   }
 
-  // Avanzar si hay camino libre
-  // y la siguiente casilla no esta visitada
   if (distancia >= DISTANCIA_LIBRE &&
       vecesVisitada(orientacion) == 0) {
-
     Serial.println("AVANZANDO");
-
     avanzarCasilla();
     return;
   }
 
-  // Si encuentra pared o camino visitado,
-  // buscar una nueva salida
-
   detener();
-
   Serial.println("BUSCANDO NUEVA RUTA");
 
   if (buscarSalidaRapida()) {
-
     avanzarCasilla();
-
   } else {
-
     detener();
     delay(300);
   }
@@ -605,10 +561,8 @@ void explorarPistaB() {
 // ========================================
 
 void setup() {
-
   Serial.begin(9600);
 
-  // Motores
   pinMode(PWMA, OUTPUT);
   pinMode(AIN1, OUTPUT);
   pinMode(AIN2, OUTPUT);
@@ -619,12 +573,10 @@ void setup() {
 
   pinMode(STBY, OUTPUT);
 
-  // Sensores
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-  pinMode(IR_PIN, INPUT);
+  pinMode(IR_IZQUIERDO, INPUT);
 
-  // LEDs
   pinMode(pink_pin, OUTPUT);
   pinMode(orange_pin, OUTPUT);
   pinMode(yellow_pin, OUTPUT);
@@ -636,31 +588,25 @@ void setup() {
   detener();
   apagarLeds();
 
-  // Limpiar memoria
   for (int y = 0; y < MAPA_SIZE; y++) {
-
     for (int x = 0; x < MAPA_SIZE; x++) {
-
       visitadas[y][x] = 0;
     }
   }
 
   registrarCasilla();
 
-  // Inicializar RGB
   Wire.begin();
   colorDisponible = tcs.begin();
 
   Serial.println(
-    colorDisponible ?
-    "RGB LISTO" :
-    "RGB NO DETECTADO"
+    colorDisponible ? "RGB LISTO" : "RGB NO DETECTADO"
   );
 
-  // Activar motores
   digitalWrite(STBY, HIGH);
 
   Serial.println("PISTA B - BUSQUEDA RAPIDA");
+  Serial.println("IR IZQUIERDO ACTIVO EN PIN 7");
   Serial.println("INICIANDO EN 3 SEGUNDOS");
 
   delay(3000);
@@ -671,6 +617,6 @@ void setup() {
 // ========================================
 
 void loop() {
-
   explorarPistaB();
 }
+```
