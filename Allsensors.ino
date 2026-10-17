@@ -43,7 +43,7 @@ Adafruit_TCS34725 tcs(
 // CONFIGURACION
 // ======================================
 
-const int VELOCIDAD = 190;
+const int VELOCIDAD = 220;
 const int VELOCIDAD_GIRO = 220;
 
 // Distancias en centimetros
