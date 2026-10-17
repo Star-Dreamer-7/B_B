@@ -8,7 +8,10 @@
 // PISTA A - MAZE
 // ======================================
 
-// MOTORES TB6612FNG
+// ======================================
+// MOTORES - TB6612FNG
+// ======================================
+
 const int PWMA = 5;
 const int AIN1 = A0;
 const int AIN2 = A1;
@@ -19,18 +22,27 @@ const int BIN2 = A3;
 
 const int STBY = 11;
 
+// ======================================
 // SENSORES
+// ======================================
+
 const int TRIGGER_PIN = 2;
 const int ECHO_PIN = 4;
 const int IR_PIN = 7;
 
+// ======================================
 // LEDS
+// ======================================
+
 const int pink_pin = 9;
 const int orange_pin = 10;
 const int yellow_pin = 3;
 const int blue_pin = 12;
 
+// ======================================
 // SENSOR RGB
+// ======================================
+
 Adafruit_TCS34725 tcs(
   TCS34725_INTEGRATIONTIME_60MS,
   TCS34725_GAIN_1X
@@ -40,23 +52,31 @@ Adafruit_TCS34725 tcs(
 // CONFIGURACION
 // ======================================
 
-const int VELOCIDAD = 150;
+// Velocidades actualizadas
+const int VELOCIDAD = 190;
 const int VELOCIDAD_GIRO = 220;
 
+// Distancias
 const float DISTANCIA_PARED = 5.0;
 const float DISTANCIA_LIBRE = 8.0;
 
+// Infrarrojo derecho
 const int IR_PARED = LOW;
 
+// Direccion de motores
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = false;
 
-const unsigned long TIEMPO_AVANCE = 60;
+// Tiempos actualizados
+const unsigned long TIEMPO_AVANCE = 100;
 const unsigned long TIEMPO_GIRO_PASO = 100;
 
 const int MAX_PASOS_BUSQUEDA = 18;
 
+// ======================================
 // VARIABLES
+// ======================================
+
 bool colorDisponible = false;
 
 float distancia = -1;
@@ -67,7 +87,7 @@ float azul = 0;
 String colorDetectado = "SIN LECTURA";
 
 // ======================================
-// MOTORES
+// CONTROL DE MOTORES
 // ======================================
 
 void moverMotores(int izquierda, int derecha) {
@@ -118,6 +138,7 @@ void girarIzquierda() {
 // ======================================
 
 void apagarLeds() {
+
   digitalWrite(pink_pin, LOW);
   digitalWrite(orange_pin, LOW);
   digitalWrite(yellow_pin, LOW);
@@ -134,6 +155,7 @@ void probarLeds() {
   };
 
   for (int i = 0; i < 4; i++) {
+
     digitalWrite(leds[i], HIGH);
     delay(250);
     digitalWrite(leds[i], LOW);
@@ -141,7 +163,7 @@ void probarLeds() {
 }
 
 // ======================================
-// ULTRASONICO
+// SENSOR ULTRASONICO
 // ======================================
 
 void leerUltrasonico() {
@@ -164,7 +186,7 @@ void leerUltrasonico() {
 }
 
 // ======================================
-// INFRARROJO DERECHO
+// SENSOR INFRARROJO DERECHO
 // ======================================
 
 bool paredDerecha() {
@@ -178,6 +200,7 @@ bool paredDerecha() {
 void leerColor() {
 
   if (!colorDisponible) {
+
     colorDetectado = "RGB NO DISPONIBLE";
     apagarLeds();
     return;
@@ -187,6 +210,7 @@ void leerColor() {
   tcs.getRawData(&r, &g, &b, &c);
 
   if (c == 0) {
+
     colorDetectado = "SIN LECTURA";
     apagarLeds();
     return;
@@ -198,6 +222,7 @@ void leerColor() {
 
   apagarLeds();
 
+  // ROSA
   if (rojo > verde * 1.20 &&
       rojo > azul * 1.10 &&
       azul > verde * 0.85) {
@@ -206,6 +231,7 @@ void leerColor() {
     digitalWrite(pink_pin, HIGH);
   }
 
+  // AMARILLO
   else if (rojo > azul * 1.35 &&
            verde > azul * 1.35 &&
            abs(rojo - verde) < 0.20 &&
@@ -215,6 +241,7 @@ void leerColor() {
     digitalWrite(yellow_pin, HIGH);
   }
 
+  // NARANJA
   else if (rojo > verde * 1.30 &&
            verde > azul * 1.15 &&
            verde > 0.15) {
@@ -223,6 +250,7 @@ void leerColor() {
     digitalWrite(orange_pin, HIGH);
   }
 
+  // CELESTE
   else if (azul > rojo * 1.20 &&
            verde > rojo * 1.10) {
 
@@ -269,7 +297,7 @@ void mostrarSensores() {
 }
 
 // ======================================
-// AVANCE CON REVISION DE DISTANCIA
+// AVANZAR REVISANDO DISTANCIA
 // ======================================
 
 void avanzarSeguro() {
@@ -336,7 +364,7 @@ void resolverMaze() {
   leerColor();
   mostrarSensores();
 
-  // Sin lectura del ultrasonico
+  // Sin lectura
   if (distancia < 0) {
 
     detener();
@@ -345,7 +373,7 @@ void resolverMaze() {
     return;
   }
 
-  // Pared frontal detectada
+  // Pared frontal
   if (distancia <= DISTANCIA_PARED) {
 
     detener();
@@ -360,10 +388,11 @@ void resolverMaze() {
       return;
     }
 
-    // Confirmar que el frente sigue libre
+    // Confirmar espacio despues del giro
     leerUltrasonico();
 
     if (distancia >= DISTANCIA_LIBRE) {
+
       Serial.println("AVANZANDO DESPUES DEL GIRO");
       avanzarSeguro();
     }
@@ -371,7 +400,7 @@ void resolverMaze() {
     return;
   }
 
-  // Frente libre
+  // Camino libre
   Serial.println("FRENTE LIBRE - AVANZANDO");
   avanzarSeguro();
 }
@@ -422,6 +451,7 @@ void setup() {
   digitalWrite(STBY, HIGH);
 
   Serial.println("ROBOREGOS MAZE INICIADO");
+
   delay(2000);
 }
 
