@@ -429,10 +429,8 @@ void setup() {
   delay(2000);
 }
 
-// ======================================
-// LOOP PRINCIPAL
-// ======================================
 
+// LOOP PRINCIPAL
 void loop() {
 
   resolverMaze();
