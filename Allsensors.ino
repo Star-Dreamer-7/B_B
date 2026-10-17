@@ -53,17 +53,17 @@ const int VELOCIDAD_GIRO = 160;
 // Distancia de seguridad frontal
 const float DISTANCIA_PARED = 30.0;
 
-// IR detecta pared con LOW
+// El IR detecta pared con LOW
 const int IR_PARED = LOW;
 
-// Direccion de motores ya configurada
+// Direccion de motores
 const bool INVERTIR_IZQUIERDO = true;
 const bool INVERTIR_DERECHO = false;
 
-// Giros aproximados
+// Tiempo de giro aproximado
 const unsigned long TIEMPO_GIRO_90 = 450;
 
-// Avance corto para revisar distancia
+// Avance corto
 const unsigned long TIEMPO_AVANCE = 30;
 
 // ======================================
@@ -80,7 +80,7 @@ float azul = 0;
 String colorDetectado = "SIN LECTURA";
 
 // ======================================
-// MOTORES
+// CONTROL DE MOTORES
 // ======================================
 
 void moverMotores(int izquierda, int derecha) {
@@ -232,7 +232,7 @@ void leerColor() {
 
   // NARANJA
   else if (rojo > verde * 1.30 &&
-           verde > azul * 1.15 &&
+           verde > azul * 1.30 &&
            verde > 0.15) {
 
     colorDetectado = "NARANJA";
@@ -326,22 +326,18 @@ void giro180() {
 }
 
 // ======================================
-// AVANCE CON REVISION DE PARED
+// AVANCE SEGURO
 // ======================================
 
 void avanzarSeguro() {
 
   leerUltrasonico();
 
-  if (distancia < 0) {
-    detener();
-    Serial.println("SIN ECO - DETENIDO");
-    return;
-  }
+  if (distancia < 0 ||
+      distancia <= DISTANCIA_PARED) {
 
-  if (distancia <= DISTANCIA_PARED) {
     detener();
-    Serial.println("PARED FRONTAL - DETENIDO");
+    Serial.println("NO AVANZAR - PARED O SIN ECO");
     return;
   }
 
@@ -360,10 +356,9 @@ void resolverMaze() {
   leerColor();
   mostrarSensores();
 
-  // No avanzar si no hay lectura
   if (distancia < 0) {
     detener();
-    Serial.println("ERROR ULTRASONICO");
+    Serial.println("SIN ECO - DETENIDO");
     delay(100);
     return;
   }
@@ -371,52 +366,64 @@ void resolverMaze() {
   bool frenteLibre = distancia > DISTANCIA_PARED;
   bool derechaLibre = !paredDerecha();
 
-  // PRIORIDAD 1: DERECHA LIBRE
-  if (derechaLibre) {
+  // CASO 1:
+  // PARED ENFRENTE Y A LA DERECHA
+  // GIRAR A LA IZQUIERDA
 
-    Serial.println("DERECHA LIBRE");
-
-    detener();
-    giro90Derecha();
-
-    // Revisar el nuevo frente
-    leerUltrasonico();
-
-    if (distancia > DISTANCIA_PARED) {
-      avanzarSeguro();
-    } else {
-      detener();
-      Serial.println("PARED TRAS GIRO");
-    }
-  }
-
-  // PRIORIDAD 2: AVANZAR
-  else if (frenteLibre) {
-
-    Serial.println("AVANZANDO");
-    avanzarSeguro();
-  }
-
-  // PRIORIDAD 3: IZQUIERDA
-  else {
-
-    Serial.println("FRENTE BLOQUEADO");
+  if (!frenteLibre && !derechaLibre) {
 
     detener();
+
+    Serial.println("PARED FRENTE Y DERECHA");
+    Serial.println("GIRANDO A LA IZQUIERDA");
+
     giro90Izquierda();
 
+    // Revisar despues de girar
     leerUltrasonico();
 
-    // Si izquierda tambien bloqueada
     if (distancia > 0 &&
         distancia <= DISTANCIA_PARED) {
 
       Serial.println("CALLEJON SIN SALIDA");
       giro90Izquierda();
     }
+  }
+
+  // CASO 2:
+  // PARED ENFRENTE, DERECHA LIBRE
+
+  else if (!frenteLibre && derechaLibre) {
 
     detener();
+
+    Serial.println("PARED FRENTE - DERECHA LIBRE");
+
+    giro90Derecha();
   }
+
+  // CASO 3:
+  // FRENTE LIBRE Y DERECHA LIBRE
+
+  else if (frenteLibre && derechaLibre) {
+
+    detener();
+
+    Serial.println("DERECHA LIBRE");
+    giro90Derecha();
+  }
+
+  // CASO 4:
+  // FRENTE LIBRE Y PARED DERECHA
+
+  else {
+
+    Serial.println("AVANZANDO JUNTO A PARED DERECHA");
+
+    avanzarSeguro();
+  }
+
+  detener();
 }
 
 // ======================================
